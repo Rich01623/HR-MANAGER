@@ -244,6 +244,11 @@
         .view-section { display: none; }
         .active-section { display: block; }
         
+        .quick-contact-link { color: var(--frost-blue); font-weight: 600; text-decoration: none; margin-right: 12px; }
+        .quick-contact-link:hover { text-decoration: underline; }
+        .whatsapp-btn { background-color: var(--accept-green); color: #fff; padding: 6px 10px; border-radius: 5px; text-decoration: none; font-size: 0.85em; font-weight: 600; display: inline-block; }
+        .whatsapp-btn:hover { opacity: 0.8; }
+
         .placeholder-box { text-align: center; padding: 40px; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: 8px; }
 
     </style>
@@ -448,8 +453,26 @@
 
         <div id="adminQuickContact" class="view-section">
             <div class="panel">
-                <h3>Quick Contact Directory</h3>
-                <div class="placeholder-box">Module Under Construction - Fast access to staff mobile numbers and emergency contacts.</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
+                    <div>
+                        <h3 style="margin: 0;">Quick Contact Directory</h3>
+                        <p style="color: var(--text-muted); margin: 6px 0 0 0; font-size: 0.9em;">Names and mobile numbers are loaded from the Supabase staff_profile table.</p>
+                    </div>
+                    <button class="btn-action" onclick="renderQuickContactDirectory(true)">↻ Refresh Contacts</button>
+                </div>
+                <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table id="quickContactTable">
+                        <thead style="background: var(--bg-main);">
+                            <tr>
+                                <th>Full Name</th>
+                                <th>Phone Number</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quickContactBody">
+                            <tr><td colspan="2" style="text-align:center; padding: 30px; color: var(--text-muted);">Open this section to load quick contacts.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -697,6 +720,7 @@
         if (tabId === 'adminPlanner') renderPlanner();
         if (tabId === 'adminStaffRegister') fetchStaffRegister();
         if (tabId === 'adminViewProfiles') renderStaffCards();
+        if (tabId === 'adminQuickContact') renderQuickContactDirectory(true);
     }
 
     async function login() {
@@ -784,6 +808,106 @@
         });
     }
 
+    function escapeHtml(value) {
+        return (value || '').toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function buildTelHref(phoneNumber) {
+        const cleaned = (phoneNumber || '').toString().replace(/[^\d+]/g, '');
+        return cleaned ? `tel:${cleaned}` : '#';
+    }
+
+    function buildWhatsAppNumber(phoneNumber) {
+        let digits = (phoneNumber || '').toString().replace(/\D/g, '');
+        if (!digits) return '';
+        if (digits.startsWith('00')) digits = digits.substring(2);
+        if (digits.startsWith('0')) digits = `44${digits.substring(1)}`;
+        return digits;
+    }
+
+    function getLocalQuickContactRows() {
+        return staffData.map(staff => {
+            const p = staff.profile || {};
+            return {
+                first_name: p.fName || (staff.name ? staff.name.split(' ')[0] : ''),
+                surname: p.sName || (staff.name ? staff.name.split(' ').slice(1).join(' ') : ''),
+                mobile_number: p.mob || ''
+            };
+        });
+    }
+
+    async function getQuickContactRowsFromSupabase() {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?select=first_name,surname,mobile_number&order=surname.asc`, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+        });
+
+        if (!response.ok) {
+            let errData = {};
+            try { errData = await response.json(); } catch (_) {}
+            throw new Error(errData.message || `Quick contact load failed with status ${response.status}`);
+        }
+
+        return await response.json();
+    }
+
+    async function renderQuickContactDirectory(fetchFresh = false) {
+        const tbody = document.getElementById('quickContactBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 20px; color: var(--text-muted);">Loading contacts...</td></tr>';
+
+        let rows = [];
+        try {
+            rows = fetchFresh ? await getQuickContactRowsFromSupabase() : getLocalQuickContactRows();
+        } catch (error) {
+            console.error('Supabase quick contact load error:', error);
+            rows = getLocalQuickContactRows();
+        }
+
+        rows = (Array.isArray(rows) ? rows : [])
+            .map(row => {
+                const firstName = row.first_name || '';
+                const surname = row.surname || '';
+                return {
+                    fullName: `${firstName} ${surname}`.trim() || 'Unnamed Staff Member',
+                    phone: row.mobile_number || ''
+                };
+            })
+            .filter(contact => contact.fullName || contact.phone)
+            .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding: 30px; color: var(--text-muted);">No staff contacts found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.map(contact => {
+            const safeName = escapeHtml(contact.fullName);
+            const safePhone = escapeHtml(contact.phone || 'No phone number saved');
+            const telHref = buildTelHref(contact.phone);
+            const whatsAppNumber = buildWhatsAppNumber(contact.phone);
+            const phoneHtml = contact.phone
+                ? `<a class="quick-contact-link" href="${telHref}">${safePhone}</a>`
+                : `<span style="color: var(--text-muted);">${safePhone}</span>`;
+            const whatsAppHtml = whatsAppNumber
+                ? `<a class="whatsapp-btn" href="https://wa.me/${whatsAppNumber}" target="_blank" rel="noopener">WhatsApp</a>`
+                : `<span style="color: var(--text-muted); font-size: 0.85em;">WhatsApp unavailable</span>`;
+
+            return `<tr>
+                <td style="font-weight:bold;">${safeName}</td>
+                <td>${phoneHtml}${whatsAppHtml}</td>
+            </tr>`;
+        }).join('');
+    }
+
     async function loadStaffProfilesFromSupabase() {
         try {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?select=*&order=surname.asc`, {
@@ -836,6 +960,7 @@
             });
 
             renderStaffCards();
+            renderQuickContactDirectory(false);
             renderAdminData();
         } catch (error) {
             console.error('Supabase staff profile load error:', error);
@@ -1080,6 +1205,7 @@
         
         switchTab('adminViewProfiles', document.querySelector('#staffProfilesSubMenu li:nth-child(2) a'), true);
         populatePlannerStaffFilter();
+        renderQuickContactDirectory(false);
         renderAdminData(); 
     }
 
