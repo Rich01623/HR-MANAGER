@@ -737,8 +737,9 @@
             document.getElementById('staffNav').style.display = 'none';
             document.getElementById('currentUserDisplay').innerText = 'Personnel Dept';
 
-            // Load saved staff profile records from Supabase before drawing cards, tables and planner filters.
+            // Load saved staff profile records and holiday entitlements from Supabase before drawing cards, tables and planner filters.
             await loadStaffProfilesFromSupabase();
+            await loadHolidayEntitlementsFromSupabase();
             populatePlannerStaffFilter();
 
             switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
@@ -968,6 +969,173 @@
         }
     }
 
+
+    function buildHolidayPayload(staff) {
+        const profile = staff.profile || {};
+        const nameParts = (staff.name || '').trim().split(' ').filter(Boolean);
+        const firstName = profile.fName || nameParts[0] || '';
+        const surname = profile.sName || nameParts.slice(1).join(' ') || '';
+
+        return {
+            local_staff_id: staff.id,
+            staff_profile_id: staff.supabaseId || null,
+            employee_number: profile.empNo || null,
+            first_name: firstName,
+            surname: surname,
+            full_name: staff.name || `${firstName} ${surname}`.trim(),
+            department: staff.dept || 'Drivers',
+            total_entitlement: Number(staff.entitlement || 0),
+            used_days: Number(staff.used || 0)
+        };
+    }
+
+    function findStaffForHolidayRow(row) {
+        const rowId = row.local_staff_id !== null && row.local_staff_id !== undefined ? Number(row.local_staff_id) : null;
+        const rowProfileId = normaliseText(row.staff_profile_id);
+        const rowEmpNo = normaliseText(row.employee_number);
+        const rowFullName = normaliseText(row.full_name || `${row.first_name || ''} ${row.surname || ''}`);
+
+        return staffData.find(staff => {
+            const profile = staff.profile || {};
+            if (rowId && Number(staff.id) === rowId) return true;
+            if (rowProfileId && normaliseText(staff.supabaseId) === rowProfileId) return true;
+            if (rowEmpNo && normaliseText(profile.empNo) === rowEmpNo) return true;
+            if (rowFullName && normaliseText(staff.name) === rowFullName) return true;
+            return false;
+        });
+    }
+
+    async function loadHolidayEntitlementsFromSupabase() {
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements?select=*&order=full_name.asc`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Supabase holiday entitlement load failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            if (!Array.isArray(rows) || rows.length === 0) return;
+
+            rows.forEach(row => {
+                const matchingStaff = findStaffForHolidayRow(row);
+                const fullName = row.full_name || `${row.first_name || ''} ${row.surname || ''}`.trim() || 'Unnamed Staff Member';
+                const entitlement = Number(row.total_entitlement || 0);
+                const used = Number(row.used_days || 0);
+
+                if (matchingStaff) {
+                    matchingStaff.name = fullName;
+                    matchingStaff.dept = row.department || matchingStaff.dept || 'Drivers';
+                    matchingStaff.entitlement = entitlement;
+                    matchingStaff.used = used;
+                    matchingStaff.holidayRowId = row.id || matchingStaff.holidayRowId;
+                    matchingStaff.supabaseId = row.staff_profile_id || matchingStaff.supabaseId;
+
+                    requests.forEach(req => {
+                        if (req.staffId === matchingStaff.id) {
+                            req.name = matchingStaff.name;
+                            req.dept = matchingStaff.dept;
+                        }
+                    });
+                } else {
+                    const newId = row.local_staff_id || (staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1);
+                    staffData.push({
+                        id: Number(newId),
+                        supabaseId: row.staff_profile_id || null,
+                        holidayRowId: row.id || null,
+                        name: fullName,
+                        dept: row.department || 'Drivers',
+                        entitlement: entitlement,
+                        used: used,
+                        profile: {
+                            fName: row.first_name || '',
+                            sName: row.surname || '',
+                            empNo: row.employee_number || ''
+                        }
+                    });
+                }
+            });
+
+            renderAdminData();
+            populatePlannerStaffFilter();
+        } catch (error) {
+            console.error('Supabase holiday entitlement load error:', error);
+            alert(`Holiday entitlements could not be loaded from Supabase: ${error.message}. The app will continue using the current local values.`);
+        }
+    }
+
+    async function saveHolidayEntitlementToSupabase(staff) {
+        const payload = buildHolidayPayload(staff);
+        const filters = [];
+
+        if (staff.holidayRowId) filters.push(`id=eq.${encodeURIComponent(staff.holidayRowId)}`);
+        if (staff.supabaseId) filters.push(`staff_profile_id=eq.${encodeURIComponent(staff.supabaseId)}`);
+        if (payload.employee_number) filters.push(`employee_number=eq.${encodeURIComponent(payload.employee_number)}`);
+        if (payload.local_staff_id) filters.push(`local_staff_id=eq.${encodeURIComponent(payload.local_staff_id)}`);
+        if (payload.first_name && payload.surname) filters.push(`first_name=eq.${encodeURIComponent(payload.first_name)}&surname=eq.${encodeURIComponent(payload.surname)}`);
+
+        const uniqueFilters = [...new Set(filters)];
+        let savedRows = [];
+        let lastError = null;
+
+        for (const filter of uniqueFilters) {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements?${filter}`, {
+                method: 'PATCH',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                lastError = errData.message || `Holiday entitlement update failed using filter: ${filter}`;
+                continue;
+            }
+
+            savedRows = await response.json();
+            if (Array.isArray(savedRows) && savedRows.length > 0) break;
+        }
+
+        if (!Array.isArray(savedRows) || savedRows.length === 0) {
+            const createResponse = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!createResponse.ok) {
+                let errData = {};
+                try { errData = await createResponse.json(); } catch (_) {}
+                throw new Error(errData.message || lastError || 'Failed to create holiday entitlement record in Supabase.');
+            }
+
+            savedRows = await createResponse.json();
+        }
+
+        if (Array.isArray(savedRows) && savedRows[0]) {
+            staff.holidayRowId = savedRows[0].id || staff.holidayRowId;
+            staff.supabaseId = savedRows[0].staff_profile_id || staff.supabaseId;
+        }
+
+        return savedRows;
+    }
+
     // --- Staff Profiles Features ---
 
     function prepareAddProfile() {
@@ -1155,6 +1323,7 @@
                 staff.dept = dept;
                 staff.profile = profileData;
                 if (Array.isArray(updatedRows) && updatedRows[0] && updatedRows[0].id) staff.supabaseId = updatedRows[0].id;
+                await saveHolidayEntitlementToSupabase(staff);
 
                 // Keep existing leave requests aligned if a staff member's name or department changes.
                 requests.forEach(req => {
@@ -1187,6 +1356,7 @@
                 // Update Local UI
                 const newId = staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1;
                 const newStaff = { id: newId, supabaseId: insertedRows && insertedRows[0] ? insertedRows[0].id : null, name: fullName, dept: dept, entitlement: 28, used: 0, profile: profileData };
+                await saveHolidayEntitlementToSupabase(newStaff);
                 staffData.push(newStaff);
                 alert(`${fullName} has been created and saved to the database.`);
             }
@@ -1429,13 +1599,36 @@
         }
     }
 
-    function quickEditEntitlements(id) {
+    async function quickEditEntitlements(id) {
         const staff = staffData.find(s => s.id === id);
+        if (!staff) return alert('Could not find this staff member.');
+
         const newEnt = prompt(`Edit Total Holiday Entitlement for ${staff.name}:`, staff.entitlement); if (newEnt === null) return;
         const newUsed = prompt(`Edit Holiday Days Used for ${staff.name}:`, staff.used); if (newUsed === null) return;
-        staff.entitlement = !isNaN(parseInt(newEnt)) ? parseInt(newEnt) : staff.entitlement;
-        staff.used = !isNaN(parseInt(newUsed)) ? parseInt(newUsed) : staff.used;
+
+        const parsedEntitlement = parseInt(newEnt, 10);
+        const parsedUsed = parseInt(newUsed, 10);
+
+        if (Number.isNaN(parsedEntitlement) || Number.isNaN(parsedUsed)) {
+            return alert('Please enter valid numbers for entitlement and used days.');
+        }
+
+        const oldEntitlement = staff.entitlement;
+        const oldUsed = staff.used;
+
+        staff.entitlement = parsedEntitlement;
+        staff.used = parsedUsed;
         renderAdminData();
+
+        try {
+            await saveHolidayEntitlementToSupabase(staff);
+            alert(`${staff.name}'s holiday entitlement has been updated in Supabase.`);
+        } catch (error) {
+            staff.entitlement = oldEntitlement;
+            staff.used = oldUsed;
+            renderAdminData();
+            alert(`Holiday entitlement update failed: ${error.message}`);
+        }
     }
 
     function renderPlanner() {
@@ -1492,19 +1685,27 @@
 
     function checkConflicts(newReq) { return requests.some(r => r.dept === newReq.dept && r.id !== newReq.id && r.status === 'Approved' && r.start <= newReq.end && r.end >= newReq.start); }
 
-    function processRequest(id, status) {
+    async function processRequest(id, status) {
         const req = requests.find(r => r.id === id);
+        if (!req) return;
         req.status = status;
         if(status === 'Approved') {
             const days = Math.ceil((new Date(req.end) - new Date(req.start)) / (1000 * 60 * 60 * 24)) + 1;
             const staff = staffData.find(s => s.id === req.staffId);
-            staff.used += days;
+            if (staff) {
+                staff.used += days;
+                try {
+                    await saveHolidayEntitlementToSupabase(staff);
+                } catch (error) {
+                    alert(`The request was approved locally, but the holiday total could not be saved to Supabase: ${error.message}`);
+                }
+            }
         }
         renderAdminData();
     }
 
-    function calculateAndAddStaff() {
-        const name = document.getElementById('newStaffName').value;
+    async function calculateAndAddStaff() {
+        const name = document.getElementById('newStaffName').value.trim();
         const dept = document.getElementById('newStaffDept').value;
         const startInput = document.getElementById('newStaffStart').value;
         if(!name || !startInput) return alert("Please fill all fields");
@@ -1514,10 +1715,17 @@
         const proRataDays = Math.round((daysRemainingInYear / 365) * 28);
 
         const newId = staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1;
-        staffData.push({ id: newId, name: name, dept: dept, entitlement: proRataDays, used: 0, profile: {fName: name.split(' ')[0], sName: name.split(' ')[1] || ''} });
-        alert(`Added ${name}! Pro-rata entitlement: ${proRataDays} days.`);
-        document.getElementById('newStaffName').value = ''; document.getElementById('newStaffStart').value = '';
-        renderAdminData(); renderStaffCards();
+        const newStaff = { id: newId, name: name, dept: dept, entitlement: proRataDays, used: 0, profile: {fName: name.split(' ')[0], sName: name.split(' ').slice(1).join(' ') || ''} };
+
+        try {
+            await saveHolidayEntitlementToSupabase(newStaff);
+            staffData.push(newStaff);
+            alert(`Added ${name}! Pro-rata entitlement: ${proRataDays} days. This has been saved to Supabase.`);
+            document.getElementById('newStaffName').value = ''; document.getElementById('newStaffStart').value = '';
+            renderAdminData(); renderStaffCards(); populatePlannerStaffFilter();
+        } catch (error) {
+            alert(`Could not save the new holiday baseline to Supabase: ${error.message}`);
+        }
     }
 </script>
 </body>
