@@ -173,6 +173,7 @@
         }
 
         button:hover { opacity: 0.8; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-action { background-color: var(--rs-orange); }
         .btn-reject { background-color: var(--reject-red); padding: 8px 12px; font-size: 0.9em; }
         .btn-accept { background-color: var(--accept-green); padding: 8px 12px; font-size: 0.9em; }
@@ -226,7 +227,7 @@
         .form-grid .full-width { grid-column: 1 / -1; }
         
         .profile-card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
-        .profile-card { background: var(--panel-slate); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .profile-card { background: var(--panel-slate); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between;}
         .profile-card:hover { border-color: var(--frost-blue); transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .profile-card-icon { width: 60px; height: 60px; background: var(--bg-main); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; font-size: 1.5rem; color: var(--frost-blue); border: 2px solid var(--border-color); }
         .profile-card h4 { margin: 0 0 5px 0; color: var(--text-main); font-size: 1.1rem; }
@@ -278,7 +279,7 @@
                     Staff Profiles <span id="staffProfilesSubMenuIcon">▼</span>
                 </a>
                 <ul class="sub-menu" id="staffProfilesSubMenu">
-                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminAddProfile', this, true)">Add Profile</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="prepareAddProfile(); switchTab('adminAddProfile', this, true)">Add Profile</a></li>
                     <li><a href="#" class="nav-sub-item" onclick="switchTab('adminViewProfiles', this, true)">View Staff Profiles</a></li>
                 </ul>
             </li>
@@ -378,8 +379,8 @@
 
         <div id="adminAddProfile" class="view-section">
             <div class="panel">
-                <h3>Add New Staff Member to HRIS</h3>
-                <p style="color: var(--text-muted); margin-bottom: 20px;">Complete the form below to create a new personnel record. This will also create their holiday entitlement baseline.</p>
+                <h3 id="profileFormTitle">Add New Staff Member to HRIS</h3>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Complete the form below to manage personnel records and establish holiday baselines.</p>
                 
                 <form id="addProfileForm" onsubmit="submitProfileForm(event)" class="form-grid">
                     <div><label>First Name</label><input type="text" id="profFName" required></div>
@@ -422,7 +423,7 @@
                     <div><label>Bank Sort Code</label><input type="text" id="profBankSort" placeholder="XX-XX-XX"></div>
 
                     <div class="full-width" style="margin-top: 20px;">
-                        <button type="submit" class="btn-action" style="width: 100%;">Create Profile & Save to Database</button>
+                        <button type="submit" id="profileSubmitBtn" class="btn-action" style="width: 100%;">Create Profile & Save to Database</button>
                     </div>
                 </form>
             </div>
@@ -583,11 +584,13 @@
 </div>
 
 <script>
+    // --- GLOBAL SUPABASE CREDENTIALS ---
+    const SUPABASE_URL = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idWR3bnd4dWNsdXdnYmtnYmZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMDQwMjYsImV4cCI6MjA5MDc4MDAyNn0.xFv-FiQ894vdfJuQYWQyF4WzQXmlnmnKvz_c8nuzl5Q';
+
     // --- Frost Transport Roster Database ---
-    // Expanded structure to hold detailed HR profile data (Old staff removed)
     let staffData = [
-        { id: 1, name: 'Chris Frost', dept: 'Office', entitlement: 28, used: 0, 
-          profile: { fName: 'Chris', sName: 'Frost', job: 'Director', empNo: 'FTS-001', mob: '07700 900001' } },
+        { id: 1, name: 'Chris Frost', dept: 'Office', entitlement: 28, used: 0, profile: { fName: 'Chris', sName: 'Frost', job: 'Director', empNo: 'FTS-001', mob: '07700 900001' } },
         { id: 2, name: 'Andy Carter', dept: 'Office', entitlement: 28, used: 17, profile: { fName: 'Andy', sName: 'Carter', job: 'Office Admin' } },
         { id: 3, name: 'Craig Robinson', dept: 'Office', entitlement: 28, used: 14, profile: { fName: 'Craig', sName: 'Robinson', job: 'Office Admin' } },
         { id: 4, name: 'David Jayes', dept: 'Office', entitlement: 28, used: 20, profile: { fName: 'David', sName: 'Jayes', job: 'Office Admin' } },
@@ -612,9 +615,9 @@
     ];
 
     let requests = [];
+    let editingStaffId = null;
 
     function loadHistoricalData() {
-        // String has been filtered to omit the deleted staff members
         const rawCSVData = "1:2026-04-03,2026-04-17;2:2026-01-01,2026-01-01|2026-01-30,2026-01-30|2026-04-03,2026-04-10|2026-05-04,2026-05-08|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;3:2026-01-01,2026-01-02|2026-02-02,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;4:2026-01-01,2026-01-02|2026-02-17,2026-02-17|2026-04-03,2026-04-06|2026-04-27,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-10-12,2026-10-16|2026-12-25,2026-12-28;5:2026-01-01,2026-01-01|2026-01-09,2026-01-09|2026-01-22,2026-01-26|2026-02-26,2026-02-26|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-03,2026-08-07|2026-08-31,2026-08-31|2026-12-25,2026-12-28;6:2026-01-01,2026-01-01|2026-03-23,2026-03-27|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-08,2026-06-19|2026-08-31,2026-08-31|2026-12-25,2026-12-28;7:2026-01-01,2026-01-02|2026-03-30,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-29|2026-08-17,2026-08-21|2026-08-31,2026-08-31|2026-11-18,2026-11-25|2026-12-25,2026-12-28;8:2026-01-01,2026-01-01|2026-02-23,2026-02-25|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;9:2026-01-01,2026-01-01|2026-03-05,2026-03-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;11:2026-01-01,2026-01-01|2026-02-20,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-09,2026-06-24|2026-08-28,2026-08-31|2026-12-25,2026-12-28;12:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;15:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-07-20,2026-07-24|2026-08-31,2026-08-31|2026-12-25,2026-12-28;17:2026-01-01,2026-01-01|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;20:2026-01-01,2026-01-01|2026-01-28,2026-01-28|2026-03-04,2026-03-13|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;21:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;22:2026-01-01,2026-01-01|2026-02-18,2026-02-23|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;23:2026-01-01,2026-01-01|2026-02-09,2026-02-09|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-13,2026-08-17|2026-08-31,2026-08-31|2026-11-16,2026-11-25|2026-12-25,2026-12-28;24:2026-01-01,2026-01-01|2026-02-06,2026-02-09|2026-02-16,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-21,2026-05-25|2026-07-06,2026-07-17|2026-08-31,2026-08-31|2026-12-21,2027-01-01;25:2026-01-01,2026-01-02|2026-02-13,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-08|2026-05-25,2026-05-27|2026-07-10,2026-07-27|2026-08-31,2026-08-31|2026-10-16,2026-10-19|2026-12-25,2026-12-28;28:2026-01-01,2026-01-02|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-04-24,2026-04-24|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-08-27,2026-08-31|2026-12-25,2026-12-28;31:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-02-19,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28";
         
         let reqId = 1;
@@ -627,14 +630,10 @@
             
             dates.forEach(d => {
                 let dp = d.split(',');
-                requests.push({
-                    id: reqId++, staffId: staffId, name: staff.name, dept: staff.dept,
-                    start: dp[0], end: dp[1], status: 'Approved' 
-                });
+                requests.push({ id: reqId++, staffId: staffId, name: staff.name, dept: staff.dept, start: dp[0], end: dp[1], status: 'Approved' });
             });
         });
     }
-
     loadHistoricalData();
 
     const ukBankHolidays2026 = [
@@ -675,7 +674,7 @@
 
         const titles = {
             'adminStaffRegister': 'Live Clock-In Register',
-            'adminAddProfile': 'Add New Staff Profile',
+            'adminAddProfile': editingStaffId ? 'Edit Staff Profile' : 'Add New Staff Profile',
             'adminViewProfiles': 'Staff Directory',
             'adminProfileDetail': 'Personnel File',
             'adminQuickContact': 'Quick Contact Directory',
@@ -700,7 +699,7 @@
         if (tabId === 'adminViewProfiles') renderStaffCards();
     }
 
-    function login() {
+    async function login() {
         const userVal = document.getElementById('userSelect').value;
         
         document.getElementById('loginWrapper').style.display = 'none';
@@ -713,85 +712,375 @@
             document.getElementById('adminNav').style.display = 'block';
             document.getElementById('staffNav').style.display = 'none';
             document.getElementById('currentUserDisplay').innerText = 'Personnel Dept';
-            
-            let filterSelect = document.getElementById('plannerStaffFilter');
-            filterSelect.innerHTML = '<option value="all">View All Staff Overlaps</option>';
-            staffData.sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
-                filterSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.dept})</option>`;
-            });
+
+            // Load saved staff profile records from Supabase before drawing cards, tables and planner filters.
+            await loadStaffProfilesFromSupabase();
+            populatePlannerStaffFilter();
 
             switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
             renderAdminData();
-        } else {
-            // Placeholder logic if you ever add generic staff login functionality again
-            currentRole = 'staff';
-            document.getElementById('adminNav').style.display = 'none';
-            document.getElementById('staffNav').style.display = 'block';
-            
-            // currentUser lookup would happen here...
-            
-            document.getElementById('sidebarRole').innerText = 'STAFF';
-            document.getElementById('currentUserDisplay').innerText = `Logged in User`;
-            switchTab('staffOverview', document.querySelector('#staffNav .nav-item'));
-            renderStaffData();
         }
     }
 
     function logout() {
-        location.reload(); // Hard reset for complete safety logout
+        location.reload(); 
     }
 
-    // --- NEW: Staff Profiles Features ---
+    function populatePlannerStaffFilter() {
+        const filterSelect = document.getElementById('plannerStaffFilter');
+        if (!filterSelect) return;
 
-    function submitProfileForm(e) {
+        filterSelect.innerHTML = '<option value="all">View All Staff Overlaps</option>';
+        staffData.sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
+            filterSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.dept})</option>`;
+        });
+    }
+
+    function normaliseText(value) {
+        return (value || '').toString().trim().toLowerCase();
+    }
+
+    function buildProfileDataFromSupabaseRow(row) {
+        return {
+            fName: row.first_name || '',
+            sName: row.surname || '',
+            dob: row.dob || '',
+            nat: row.nationality || '',
+            add1: row.address_line1 || '',
+            add2: row.address_line2 || '',
+            add3: row.address_line3 || '',
+            post: row.postcode || '',
+            mob: row.mobile_number || '',
+            email: row.email || '',
+            empNo: row.employee_number || '',
+            join: row.joined_date || '',
+            job: row.job_title || '',
+            hours: row.contracted_hours || '',
+            emergName: row.emergency_contact_name || '',
+            emergNum: row.emergency_contact_number || '',
+            ni: row.ni_number || '',
+            bankAcc: row.bank_account_number || '',
+            bankSort: row.bank_sort_code || ''
+        };
+    }
+
+    function findMatchingLocalStaff(profileData) {
+        const empNo = normaliseText(profileData.empNo);
+        const fName = normaliseText(profileData.fName);
+        const sName = normaliseText(profileData.sName);
+        const fullName = normaliseText(`${profileData.fName} ${profileData.sName}`);
+
+        return staffData.find(staff => {
+            const localProfile = staff.profile || {};
+            const localEmpNo = normaliseText(localProfile.empNo);
+            const localFName = normaliseText(localProfile.fName);
+            const localSName = normaliseText(localProfile.sName);
+            const localFullName = normaliseText(staff.name);
+
+            if (empNo && localEmpNo && empNo === localEmpNo) return true;
+            if (fName && sName && localFName === fName && localSName === sName) return true;
+            if (fullName && localFullName === fullName) return true;
+            return false;
+        });
+    }
+
+    async function loadStaffProfilesFromSupabase() {
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?select=*&order=surname.asc`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Supabase profile load failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            if (!Array.isArray(rows) || rows.length === 0) return;
+
+            rows.forEach(row => {
+                const profileData = buildProfileDataFromSupabaseRow(row);
+                const fullName = `${profileData.fName} ${profileData.sName}`.trim() || row.employee_number || 'Unnamed Staff Member';
+                const matchingStaff = findMatchingLocalStaff(profileData);
+
+                if (matchingStaff) {
+                    matchingStaff.name = fullName;
+                    matchingStaff.dept = row.department || row.dept || matchingStaff.dept || 'Drivers';
+                    matchingStaff.entitlement = Number(row.entitlement || row.holiday_entitlement || matchingStaff.entitlement || 28);
+                    matchingStaff.used = Number(row.used || row.holiday_used || matchingStaff.used || 0);
+                    matchingStaff.profile = profileData;
+                    matchingStaff.supabaseId = row.id || matchingStaff.supabaseId;
+
+                    requests.forEach(req => {
+                        if (req.staffId === matchingStaff.id) {
+                            req.name = matchingStaff.name;
+                            req.dept = matchingStaff.dept;
+                        }
+                    });
+                } else {
+                    const newId = staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1;
+                    staffData.push({
+                        id: newId,
+                        supabaseId: row.id || null,
+                        name: fullName,
+                        dept: row.department || row.dept || 'Drivers',
+                        entitlement: Number(row.entitlement || row.holiday_entitlement || 28),
+                        used: Number(row.used || row.holiday_used || 0),
+                        profile: profileData
+                    });
+                }
+            });
+
+            renderStaffCards();
+            renderAdminData();
+        } catch (error) {
+            console.error('Supabase staff profile load error:', error);
+            alert(`Staff profiles could not be loaded from Supabase: ${error.message}. The app will continue using the built-in staff list.`);
+        }
+    }
+
+    // --- Staff Profiles Features ---
+
+    function prepareAddProfile() {
+        editingStaffId = null;
+        document.getElementById('addProfileForm').reset();
+        document.getElementById('profileFormTitle').innerText = "Add New Staff Member to HRIS";
+        document.getElementById('profileSubmitBtn').innerText = "Create Profile & Save to Database";
+        document.getElementById('pageTitle').innerText = "Add New Staff Profile";
+    }
+
+    function openEditProfile(id, event) {
+        event.stopPropagation();
+        const staff = staffData.find(s => s.id === id);
+        if(!staff) return;
+        
+        editingStaffId = id;
+        
+        document.getElementById('profileFormTitle').innerText = `Edit Profile: ${staff.name}`;
+        document.getElementById('profileSubmitBtn').innerText = "Save Changes to Database";
+        document.getElementById('pageTitle').innerText = "Edit Staff Profile";
+
+        const p = staff.profile || {};
+        document.getElementById('profFName').value = p.fName || '';
+        document.getElementById('profSName').value = p.sName || '';
+        document.getElementById('profDOB').value = p.dob || '';
+        document.getElementById('profNat').value = p.nat || '';
+        document.getElementById('profAdd1').value = p.add1 || '';
+        document.getElementById('profAdd2').value = p.add2 || '';
+        document.getElementById('profAdd3').value = p.add3 || '';
+        document.getElementById('profPost').value = p.post || '';
+        document.getElementById('profMob').value = p.mob || '';
+        document.getElementById('profEmail').value = p.email || '';
+        document.getElementById('profEmpNo').value = p.empNo || '';
+        document.getElementById('profJoin').value = p.join || '';
+        document.getElementById('profDept').value = staff.dept || 'Drivers';
+        document.getElementById('profJob').value = p.job || '';
+        document.getElementById('profHours').value = p.hours || '';
+        document.getElementById('profEmergName').value = p.emergName || '';
+        document.getElementById('profEmergNum').value = p.emergNum || '';
+        document.getElementById('profNI').value = p.ni || '';
+        document.getElementById('profBankAcc').value = p.bankAcc || '';
+        document.getElementById('profBankSort').value = p.bankSort || '';
+
+        switchTab('adminAddProfile', document.querySelector('#staffProfilesSubMenu li:nth-child(1) a'), true);
+    }
+
+    async function submitProfileForm(e) {
         e.preventDefault();
         
-        // Grab all inputs
-        const fName = document.getElementById('profFName').value;
-        const sName = document.getElementById('profSName').value;
-        const dept = document.getElementById('profDept').value;
-        const fullName = `${fName} ${sName}`;
+        const submitBtn = document.getElementById('profileSubmitBtn');
+        const originalText = submitBtn.innerText;
+        submitBtn.innerText = "Saving to Database...";
+        submitBtn.disabled = true;
 
-        const newStaff = {
-            id: staffData.length + 1,
-            name: fullName,
-            dept: dept,
-            entitlement: 28, // Standard baseline
-            used: 0,
-            profile: {
-                fName: fName,
-                sName: sName,
-                dob: document.getElementById('profDOB').value,
-                nat: document.getElementById('profNat').value,
-                add1: document.getElementById('profAdd1').value,
-                add2: document.getElementById('profAdd2').value,
-                add3: document.getElementById('profAdd3').value,
-                post: document.getElementById('profPost').value,
-                mob: document.getElementById('profMob').value,
-                email: document.getElementById('profEmail').value,
-                empNo: document.getElementById('profEmpNo').value,
-                join: document.getElementById('profJoin').value,
-                job: document.getElementById('profJob').value,
-                hours: document.getElementById('profHours').value,
-                emergName: document.getElementById('profEmergName').value,
-                emergNum: document.getElementById('profEmergNum').value,
-                ni: document.getElementById('profNI').value.toUpperCase(),
-                bankAcc: document.getElementById('profBankAcc').value,
-                bankSort: document.getElementById('profBankSort').value
-            }
+        const fName = document.getElementById('profFName').value.trim();
+        const sName = document.getElementById('profSName').value.trim();
+        const dept = document.getElementById('profDept').value;
+        const fullName = `${fName} ${sName}`.trim();
+
+        const dbPayload = {
+            first_name: fName,
+            surname: sName,
+            dob: document.getElementById('profDOB').value || null,
+            nationality: document.getElementById('profNat').value,
+            address_line1: document.getElementById('profAdd1').value,
+            address_line2: document.getElementById('profAdd2').value,
+            address_line3: document.getElementById('profAdd3').value,
+            postcode: document.getElementById('profPost').value,
+            mobile_number: document.getElementById('profMob').value,
+            email: document.getElementById('profEmail').value,
+            employee_number: document.getElementById('profEmpNo').value,
+            joined_date: document.getElementById('profJoin').value || null,
+            job_title: document.getElementById('profJob').value,
+            contracted_hours: document.getElementById('profHours').value ? parseInt(document.getElementById('profHours').value) : null,
+            emergency_contact_name: document.getElementById('profEmergName').value,
+            emergency_contact_number: document.getElementById('profEmergNum').value,
+            ni_number: document.getElementById('profNI').value.toUpperCase(),
+            bank_account_number: document.getElementById('profBankAcc').value,
+            bank_sort_code: document.getElementById('profBankSort').value
         };
 
-        staffData.push(newStaff);
-        
-        // In a live app, you would send this to Supabase here:
-        // await supabase.from('staff_profile').insert([newStaff.profile]);
+        const profileData = {
+            fName: fName, sName: sName,
+            dob: dbPayload.dob || '', nat: dbPayload.nationality,
+            add1: dbPayload.address_line1, add2: dbPayload.address_line2, add3: dbPayload.address_line3, post: dbPayload.postcode,
+            mob: dbPayload.mobile_number, email: dbPayload.email, empNo: dbPayload.employee_number,
+            join: dbPayload.joined_date || '', job: dbPayload.job_title, hours: dbPayload.contracted_hours || '',
+            emergName: dbPayload.emergency_contact_name, emergNum: dbPayload.emergency_contact_number,
+            ni: dbPayload.ni_number, bankAcc: dbPayload.bank_account_number, bankSort: dbPayload.bank_sort_code
+        };
 
-        alert(`${fullName} has been added to the HR system.`);
+        try {
+            if (editingStaffId) {
+                // UPDATE EXISTING PROFILE IN SUPABASE
+                const staff = staffData.find(s => s.id === editingStaffId);
+                if (!staff) throw new Error("Could not find this staff member in the local staff list.");
+
+                const oldProfile = staff.profile || {};
+                const oldFName = oldProfile.fName || '';
+                const oldSName = oldProfile.sName || '';
+                const oldEmpNo = oldProfile.empNo || '';
+
+                // Try the most reliable match first. Supabase row id is strongest, then employee number, then name.
+                // If the old hard-coded staff member does not exist in Supabase yet, the code will create the row instead of silently failing.
+                const patchFilters = [];
+
+                if (staff.supabaseId) {
+                    patchFilters.push(`id=eq.${encodeURIComponent(staff.supabaseId)}`);
+                }
+
+                if (oldEmpNo) {
+                    patchFilters.push(`employee_number=eq.${encodeURIComponent(oldEmpNo)}`);
+                }
+
+                if (oldFName && oldSName) {
+                    patchFilters.push(`first_name=eq.${encodeURIComponent(oldFName)}&surname=eq.${encodeURIComponent(oldSName)}`);
+                }
+
+                if (dbPayload.employee_number && dbPayload.employee_number !== oldEmpNo) {
+                    patchFilters.push(`employee_number=eq.${encodeURIComponent(dbPayload.employee_number)}`);
+                }
+
+                if (fName && sName && (fName !== oldFName || sName !== oldSName)) {
+                    patchFilters.push(`first_name=eq.${encodeURIComponent(fName)}&surname=eq.${encodeURIComponent(sName)}`);
+                }
+
+                // Remove duplicate filters while keeping their order.
+                const uniquePatchFilters = [...new Set(patchFilters)];
+                let updatedRows = [];
+                let lastPatchError = null;
+
+                for (const filter of uniquePatchFilters) {
+                    const updateResponse = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?${filter}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=representation'
+                        },
+                        body: JSON.stringify(dbPayload)
+                    });
+
+                    if (!updateResponse.ok) {
+                        let errData = {};
+                        try { errData = await updateResponse.json(); } catch (_) {}
+                        lastPatchError = errData.message || `Failed to update record in Supabase using filter: ${filter}`;
+                        continue;
+                    }
+
+                    updatedRows = await updateResponse.json();
+                    if (Array.isArray(updatedRows) && updatedRows.length > 0) break;
+                }
+
+                // Supabase can return 200/204 even when no rows matched. If that happens, create the row so the edit is uploaded.
+                if (!Array.isArray(updatedRows) || updatedRows.length === 0) {
+                    if (uniquePatchFilters.length > 0 && lastPatchError) {
+                        console.warn("Last Supabase PATCH warning:", lastPatchError);
+                    }
+
+                    const createMissingResponse = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile`, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=representation'
+                        },
+                        body: JSON.stringify(dbPayload)
+                    });
+
+                    if (!createMissingResponse.ok) {
+                        const errData = await createMissingResponse.json();
+                        throw new Error(errData.message || "No existing Supabase row matched this staff member, and creating the missing row failed.");
+                    }
+
+                    updatedRows = await createMissingResponse.json();
+                    alert(`${fullName}'s profile was not found in Supabase, so a new database record has been created with the edited details.`);
+                } else {
+                    alert(`${fullName}'s profile has been updated in the database.`);
+                }
+
+                // Update Local UI after Supabase succeeds
+                staff.name = fullName;
+                staff.dept = dept;
+                staff.profile = profileData;
+                if (Array.isArray(updatedRows) && updatedRows[0] && updatedRows[0].id) staff.supabaseId = updatedRows[0].id;
+
+                // Keep existing leave requests aligned if a staff member's name or department changes.
+                requests.forEach(req => {
+                    if (req.staffId === editingStaffId) {
+                        req.name = fullName;
+                        req.dept = dept;
+                    }
+                });
+
+            } else {
+                // CREATE NEW PROFILE IN SUPABASE
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify(dbPayload)
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.message || "Failed to save to Supabase.");
+                }
+
+                const insertedRows = await response.json();
+
+                // Update Local UI
+                const newId = staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1;
+                const newStaff = { id: newId, supabaseId: insertedRows && insertedRows[0] ? insertedRows[0].id : null, name: fullName, dept: dept, entitlement: 28, used: 0, profile: profileData };
+                staffData.push(newStaff);
+                alert(`${fullName} has been created and saved to the database.`);
+            }
+        } catch (error) {
+            alert(`Database Error: ${error.message}`);
+            submitBtn.innerText = originalText;
+            submitBtn.disabled = false;
+            return; 
+        }
+
+        submitBtn.innerText = originalText;
+        submitBtn.disabled = false;
+
         document.getElementById('addProfileForm').reset();
+        prepareAddProfile(); 
         
-        // Automatically switch to view profiles to see the new card
         switchTab('adminViewProfiles', document.querySelector('#staffProfilesSubMenu li:nth-child(2) a'), true);
-        renderAdminData(); // Refresh tables in background
+        populatePlannerStaffFilter();
+        renderAdminData(); 
     }
 
     function renderStaffCards() {
@@ -805,9 +1094,14 @@
             const jobTitle = s.profile && s.profile.job ? s.profile.job : s.dept;
             return `
                 <div class="profile-card" onclick="viewStaffDetail(${s.id})">
-                    <div class="profile-card-icon">${initials}</div>
-                    <h4>${s.name}</h4>
-                    <p>${jobTitle}</p>
+                    <div style="flex-grow: 1;">
+                        <div class="profile-card-icon">${initials}</div>
+                        <h4>${s.name}</h4>
+                        <p>${jobTitle}</p>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <button onclick="openEditProfile(${s.id}, event)" style="padding: 6px 12px; font-size: 0.85em; background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); width: 100%;">✎ Edit Profile</button>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -872,8 +1166,6 @@
     // --- Dynamic Supabase Fetch Function for Live Register ---
     async function fetchStaffRegister() {
         const tbody = document.getElementById('registerBody');
-        const supabaseUrl = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idWR3bnd4dWNsdXdnYmtnYmZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMDQwMjYsImV4cCI6MjA5MDc4MDAyNn0.xFv-FiQ894vdfJuQYWQyF4WzQXmlnmnKvz_c8nuzl5Q';
         
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">Fetching Live Data from Supabase...</td></tr>';
         
@@ -884,8 +1176,8 @@
             lastSunday.setDate(now.getDate() - dayOfWeek);
             lastSunday.setHours(0, 0, 0, 0);
             
-            const response = await fetch(`${supabaseUrl}/rest/v1/fleet_logs?created_at=gte.${lastSunday.toISOString()}&order=created_at.asc&limit=1000`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/fleet_logs?created_at=gte.${lastSunday.toISOString()}&order=created_at.asc&limit=1000`, {
+                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
             });
             
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -972,7 +1264,7 @@
                     <td>${staff.used}</td>
                     <td style="color: ${statusColor}; font-weight:bold;">${rem}</td>
                     <td>
-                        <button style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); padding: 5px 10px; margin-right: 5px;" onclick="editStaff(${staff.id})">Edit</button>
+                        <button style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); padding: 5px 10px; margin-right: 5px;" onclick="quickEditEntitlements(${staff.id})">Edit Entitlement</button>
                         <button style="background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red); padding: 5px 10px;" onclick="removeStaff(${staff.id})">Remove</button>
                     </td>
                 </tr>
@@ -1011,20 +1303,13 @@
         }
     }
 
-    function editStaff(id) {
+    function quickEditEntitlements(id) {
         const staff = staffData.find(s => s.id === id);
-        const newName = prompt("Edit Staff Name:", staff.name); if (newName === null) return; 
-        const newDept = prompt("Edit Department (Drivers, Yard, Office):", staff.dept); if (newDept === null) return;
-        const newEnt = prompt("Edit Total Entitlement:", staff.entitlement); if (newEnt === null) return;
-        const newUsed = prompt("Edit Days Used:", staff.used); if (newUsed === null) return;
-
-        staff.name = newName.trim() !== '' ? newName : staff.name;
-        staff.dept = newDept.trim() !== '' ? newDept : staff.dept;
+        const newEnt = prompt(`Edit Total Holiday Entitlement for ${staff.name}:`, staff.entitlement); if (newEnt === null) return;
+        const newUsed = prompt(`Edit Holiday Days Used for ${staff.name}:`, staff.used); if (newUsed === null) return;
         staff.entitlement = !isNaN(parseInt(newEnt)) ? parseInt(newEnt) : staff.entitlement;
         staff.used = !isNaN(parseInt(newUsed)) ? parseInt(newUsed) : staff.used;
-
         renderAdminData();
-        renderStaffCards();
     }
 
     function renderPlanner() {
@@ -1093,7 +1378,6 @@
     }
 
     function calculateAndAddStaff() {
-        // Quick add for baseline holiday only
         const name = document.getElementById('newStaffName').value;
         const dept = document.getElementById('newStaffDept').value;
         const startInput = document.getElementById('newStaffStart').value;
@@ -1103,45 +1387,11 @@
         const daysRemainingInYear = Math.ceil((yearEnd - startDate) / (1000 * 60 * 60 * 24));
         const proRataDays = Math.round((daysRemainingInYear / 365) * 28);
 
-        staffData.push({ id: staffData.length + 1, name: name, dept: dept, entitlement: proRataDays, used: 0, profile: {fName: name.split(' ')[0], sName: name.split(' ')[1] || ''} });
+        const newId = staffData.length > 0 ? Math.max(...staffData.map(s => s.id)) + 1 : 1;
+        staffData.push({ id: newId, name: name, dept: dept, entitlement: proRataDays, used: 0, profile: {fName: name.split(' ')[0], sName: name.split(' ')[1] || ''} });
         alert(`Added ${name}! Pro-rata entitlement: ${proRataDays} days.`);
         document.getElementById('newStaffName').value = ''; document.getElementById('newStaffStart').value = '';
         renderAdminData(); renderStaffCards();
-    }
-
-    // --- Staff Functions ---
-    function renderStaffData() {
-        document.getElementById('staffTotal').innerText = currentUser.entitlement;
-        document.getElementById('staffUsed').innerText = currentUser.used;
-        const rem = currentUser.entitlement - currentUser.used;
-        let remColor = 'var(--accept-green)';
-        if (rem < 0) remColor = 'var(--reject-red)'; else if (rem <= 5) remColor = 'var(--rs-orange)';
-        const remainingElement = document.getElementById('staffRemaining');
-        remainingElement.innerText = rem; remainingElement.style.color = remColor;
-
-        const myReqBody = document.getElementById('myRequestsBody');
-        myReqBody.innerHTML = '';
-        const myRequests = requests.filter(r => r.staffId === currentUser.id);
-        
-        if(myRequests.length === 0) {
-            myReqBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No recent requests</td></tr>`;
-        } else {
-            myRequests.forEach(req => {
-                let statusColor = req.status === 'Approved' ? 'var(--accept-green)' : (req.status === 'Rejected' ? 'var(--reject-red)' : 'var(--rs-orange)');
-                myReqBody.innerHTML += `<tr><td>${req.start}</td><td>${req.end}</td><td style="color: ${statusColor}; font-weight:bold;">${req.status}</td></tr>`;
-            });
-        }
-    }
-
-    function submitLeaveRequest(e) {
-        e.preventDefault();
-        const start = document.getElementById('leaveStart').value;
-        const end = document.getElementById('leaveEnd').value;
-        requests.push({ id: requests.length + 1, staffId: currentUser.id, name: currentUser.name, dept: currentUser.dept, start: start, end: end, status: 'Pending' });
-        alert("Request sent to personnel for authorization.");
-        document.getElementById('leaveRequestForm').reset();
-        renderStaffData();
-        switchTab('staffOverview', document.querySelector('#staffNav .nav-item')); 
     }
 </script>
 </body>
