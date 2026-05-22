@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frost Transport | HR Master Suite</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-sidebar: #0b1121;
+            --panel-slate: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --frost-blue: #3b82f6;
+            --frost-blue-hover: #2563eb;
+            --rs-orange: #ff7b00;
+            --reject-red: #ef4444;
+            --accept-green: #22c55e;
+            --border-color: #334155;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Layout Structure --- */
+        #loginWrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #appWrapper {
+            display: none;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            color: var(--rs-orange);
+            font-size: 1.4rem;
+            letter-spacing: 1px;
+        }
+
+        .nav-links {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .nav-links li {
+            padding: 0 15px;
+            margin-bottom: 5px;
+        }
+
+        .nav-links a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            background-color: var(--panel-slate);
+            color: var(--text-main);
+            border-left: 4px solid var(--frost-blue);
+        }
+
+        /* Sub-menu Styles */
+        .sub-menu {
+            list-style: none;
+            padding: 0 0 0 15px;
+            margin: 5px 0 10px 0;
+            display: none;
+        }
+        
+        .sub-menu.open {
+            display: block;
+        }
+
+        .sub-menu li a {
+            padding: 10px 15px;
+            font-size: 0.9em;
+            border-left: none;
+        }
+
+        .sub-menu li a:hover, .sub-menu li a.active {
+            background-color: rgba(59, 130, 246, 0.1); 
+            color: var(--frost-blue);
+            border-left: none;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* --- Main Content Area --- */
+        .main-content {
+            flex-grow: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .top-bar h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        /* --- UI Elements --- */
+        .panel {
+            background-color: var(--panel-slate);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            margin-bottom: 25px;
+        }
+
+        h3 { color: var(--text-main); margin-top: 0; margin-bottom: 20px; }
+        
+        button {
+            background-color: var(--frost-blue);
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.8; }
+        .btn-action { background-color: var(--rs-orange); }
+        .btn-reject { background-color: var(--reject-red); padding: 8px 12px; font-size: 0.9em; }
+        .btn-accept { background-color: var(--accept-green); padding: 8px 12px; font-size: 0.9em; }
+        .btn-logout { background-color: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); width: 100%; }
+        .btn-logout:hover { background-color: var(--border-color); color: #fff; }
+
+        input, select {
+            padding: 10px 12px;
+            margin: 5px 0 15px 0;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-main);
+            color: var(--text-main);
+            width: 100%;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 12px 15px; border-bottom: 1px solid var(--border-color); }
+        th { color: var(--text-muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover { background-color: rgba(255,255,255,0.02); }
+
+        .conflict-warning { color: var(--rs-orange); font-size: 0.85em; font-weight: bold; display: block; margin-top: 4px;}
+
+        .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px;}
+        .card { background: var(--panel-slate); padding: 20px; border-radius: 8px; text-align: center; border: 1px solid var(--border-color); }
+        .card h4 { margin: 0 0 10px 0; color: var(--text-muted); font-size: 0.95rem; font-weight: normal; }
+        .stat-num { font-size: 2.5rem; color: var(--text-main); font-weight: bold; }
+
+        /* --- Planner Specific Styles --- */
+        .planner-controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; background: var(--panel-slate); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .planner-legend { display: flex; gap: 20px; font-size: 0.9em; color: var(--text-muted); }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-box { width: 14px; height: 14px; border-radius: 3px; }
+
+        .planner-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .month-card { background: var(--panel-slate); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .month-title { text-align: center; margin: 0 0 15px 0; color: var(--frost-blue); font-weight: 600; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day-cell { padding: 8px 0; text-align: center; background: var(--bg-main); border-radius: 4px; font-size: 0.85em; cursor: pointer; transition: transform 0.1s; position: relative;}
+        .day-cell:hover { transform: scale(1.1); z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.5);}
+        .day-header { font-weight: bold; color: var(--text-muted); padding-bottom: 5px; text-align: center; font-size: 0.8em; }
+        .day-empty { background: transparent; }
+        
+        .day-bank-holiday { background-color: var(--frost-blue); color: white; font-weight: bold; }
+        .day-booked-single { background-color: var(--rs-orange); color: white; font-weight: bold; }
+        .day-booked-multi { background-color: var(--reject-red); color: white; font-weight: bold; }
+
+        /* --- Staff Profile Specific Styles --- */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-grid label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.9em; }
+        .form-grid .full-width { grid-column: 1 / -1; }
+        
+        .profile-card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .profile-card { background: var(--panel-slate); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .profile-card:hover { border-color: var(--frost-blue); transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .profile-card-icon { width: 60px; height: 60px; background: var(--bg-main); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; font-size: 1.5rem; color: var(--frost-blue); border: 2px solid var(--border-color); }
+        .profile-card h4 { margin: 0 0 5px 0; color: var(--text-main); font-size: 1.1rem; }
+        .profile-card p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+
+        .profile-detail-header { display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 20px; margin-bottom: 20px; }
+        .profile-detail-data { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .data-group { background: var(--bg-main); padding: 15px; border-radius: 6px; border: 1px solid var(--border-color); }
+        .data-group h4 { margin-top: 0; color: var(--rs-orange); border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95em; }
+        .data-label { color: var(--text-muted); }
+        .data-val { color: var(--text-main); font-weight: 500; text-align: right; }
+
+        .view-section { display: none; }
+        .active-section { display: block; }
+        
+        .placeholder-box { text-align: center; padding: 40px; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: 8px; }
+
+    </style>
+</head>
+<body>
+
+<div id="loginWrapper">
+    <div class="panel" style="width: 100%; max-width: 400px; text-align: center;">
+        <h2 style="color: var(--rs-orange); margin-bottom: 30px;">Frost HR Login</h2>
+        <div style="text-align: left;">
+            <label>Select Profile:</label>
+            <select id="userSelect">
+                <option value="admin">Personnel Manager (Admin)</option>
+            </select>
+            <button class="btn-action" onclick="login()" style="width: 100%; margin-top: 10px;">Secure Login</button>
+        </div>
+    </div>
+</div>
+
+<div id="appWrapper">
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>FROST HR</h2>
+            <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 5px;" id="sidebarRole">Loading...</div>
+        </div>
+        
+        <ul class="nav-links" id="adminNav" style="display: none;">
+            
+            <li><a href="#" class="nav-item" onclick="switchTab('adminStaffRegister', this)" style="color: #fff; background: rgba(59, 130, 246, 0.2); border-left: 4px solid var(--accept-green);">🟢 Live Staff Register</a></li>
+            
+            <li>
+                <a href="#" class="nav-item" onclick="toggleSubMenu('staffProfilesSubMenu')">
+                    Staff Profiles <span id="staffProfilesSubMenuIcon">▼</span>
+                </a>
+                <ul class="sub-menu" id="staffProfilesSubMenu">
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminAddProfile', this, true)">Add Profile</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminViewProfiles', this, true)">View Staff Profiles</a></li>
+                </ul>
+            </li>
+
+            <li><a href="#" class="nav-item" onclick="switchTab('adminQuickContact', this)">Quick Contact</a></li>
+
+            <li>
+                <a href="#" class="nav-item" onclick="toggleSubMenu('leaveSubMenu')">
+                    Annual Leave <span id="leaveSubMenuIcon">▼</span>
+                </a>
+                <ul class="sub-menu" id="leaveSubMenu">
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminOverview', this, true)">Overview</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminAuth', this, true)">Authorizations</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminStaff', this, true)">Holiday Entitlements</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminPlanner', this, true)">Yearly Planner</a></li>
+                </ul>
+            </li>
+
+            <li>
+                <a href="#" class="nav-item" onclick="toggleSubMenu('disciplinarySubMenu')">
+                    Disciplinary <span id="disciplinarySubMenuIcon">▼</span>
+                </a>
+                <ul class="sub-menu" id="disciplinarySubMenu">
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminStartDisciplinary', this, true)">Start Disciplinary</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminOpenCases', this, true)">Open Cases</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminClosedCases', this, true)">Closed Cases</a></li>
+                </ul>
+            </li>
+
+            <li>
+                <a href="#" class="nav-item" onclick="toggleSubMenu('licenseSubMenu')">
+                    Licenses <span id="licenseSubMenuIcon">▼</span>
+                </a>
+                <ul class="sub-menu" id="licenseSubMenu">
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminLicenseChecks', this, true)">License Checks</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminCPCChecks', this, true)">CPC Checks</a></li>
+                </ul>
+            </li>
+
+            <li>
+                <a href="#" class="nav-item" onclick="toggleSubMenu('equipmentSubMenu')">
+                    Company Equipment <span id="equipmentSubMenuIcon">▼</span>
+                </a>
+                <ul class="sub-menu" id="equipmentSubMenu">
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminPhones', this, true)">Phones</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminLaptops', this, true)">Laptops</a></li>
+                </ul>
+            </li>
+
+        </ul>
+
+        <ul class="nav-links" id="staffNav" style="display: none;">
+            <li><a href="#" class="nav-item active" onclick="switchTab('staffOverview', this)">My Summary</a></li>
+            <li><a href="#" class="nav-item" onclick="switchTab('staffBook', this)">Book Leave</a></li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <h1 id="pageTitle">Dashboard Overview</h1>
+            <div id="currentUserDisplay" style="color: var(--text-muted); font-weight: 500;"></div>
+        </div>
+
+        <div id="adminStaffRegister" class="view-section">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                        <span style="display: inline-block; width: 12px; height: 12px; background-color: var(--accept-green); border-radius: 50%; box-shadow: 0 0 8px var(--accept-green);"></span>
+                        Live Staff Clock-In Register
+                    </h3>
+                    <button class="btn-action" onclick="fetchStaffRegister()">↻ Refresh Live Data</button>
+                </div>
+                <p style="color: var(--text-muted); margin-top: -10px; margin-bottom: 20px; font-size: 0.9em;">
+                    Displaying shift activity for the current week. Automatically resets every Sunday.
+                </p>
+                <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table id="registerTable">
+                        <thead id="registerHead" style="background: var(--bg-main);">
+                            <tr>
+                                <th>Name</th>
+                                <th>Clocked In</th>
+                                <th>Clocked Out</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registerBody">
+                            <tr><td colspan="4" style="text-align:center; padding: 30px;">Awaiting connection...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="adminAddProfile" class="view-section">
+            <div class="panel">
+                <h3>Add New Staff Member to HRIS</h3>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">Complete the form below to create a new personnel record. This will also create their holiday entitlement baseline.</p>
+                
+                <form id="addProfileForm" onsubmit="submitProfileForm(event)" class="form-grid">
+                    <div><label>First Name</label><input type="text" id="profFName" required></div>
+                    <div><label>Surname</label><input type="text" id="profSName" required></div>
+                    
+                    <div><label>Date of Birth</label><input type="date" id="profDOB"></div>
+                    <div><label>Nationality</label><input type="text" id="profNat"></div>
+                    
+                    <div class="full-width"><label>Address Line 1</label><input type="text" id="profAdd1"></div>
+                    <div class="full-width"><label>Address Line 2</label><input type="text" id="profAdd2"></div>
+                    <div><label>Address Line 3 (City/Town)</label><input type="text" id="profAdd3"></div>
+                    <div><label>Post Code</label><input type="text" id="profPost"></div>
+                    
+                    <div><label>Mobile Number</label><input type="tel" id="profMob"></div>
+                    <div><label>Email Address</label><input type="email" id="profEmail"></div>
+                    
+                    <div style="border-top: 1px solid var(--border-color); margin-top: 10px; padding-top: 15px;" class="full-width"></div>
+                    
+                    <div><label>Employee Number</label><input type="text" id="profEmpNo"></div>
+                    <div><label>Date Joined Company</label><input type="date" id="profJoin"></div>
+                    
+                    <div><label>Department</label>
+                        <select id="profDept">
+                            <option value="Drivers">Drivers</option>
+                            <option value="Yard">Yard</option>
+                            <option value="Office">Office</option>
+                        </select>
+                    </div>
+                    <div><label>Job Title</label><input type="text" id="profJob"></div>
+                    <div><label>Contracted Hours</label><input type="number" id="profHours"></div>
+                    <div></div> <div style="border-top: 1px solid var(--border-color); margin-top: 10px; padding-top: 15px;" class="full-width"></div>
+
+                    <div><label>Emergency Contact Name</label><input type="text" id="profEmergName"></div>
+                    <div><label>Emergency Contact Number</label><input type="tel" id="profEmergNum"></div>
+
+                    <div style="border-top: 1px solid var(--border-color); margin-top: 10px; padding-top: 15px;" class="full-width"></div>
+
+                    <div class="full-width"><label>National Insurance Number</label><input type="text" id="profNI" style="text-transform: uppercase;"></div>
+                    <div><label>Bank Account Number</label><input type="text" id="profBankAcc" maxlength="8"></div>
+                    <div><label>Bank Sort Code</label><input type="text" id="profBankSort" placeholder="XX-XX-XX"></div>
+
+                    <div class="full-width" style="margin-top: 20px;">
+                        <button type="submit" class="btn-action" style="width: 100%;">Create Profile & Save to Database</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="adminViewProfiles" class="view-section">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Staff Directory</h3>
+                    <input type="text" id="staffSearch" placeholder="Search by name..." style="width: 250px; margin: 0;" onkeyup="filterProfiles()">
+                </div>
+                <div class="profile-card-container" id="profileCardContainer">
+                    </div>
+            </div>
+        </div>
+
+        <div id="adminProfileDetail" class="view-section">
+            <button onclick="switchTab('adminViewProfiles', document.querySelector('#staffProfilesSubMenu li:nth-child(2) a'), true)" style="margin-bottom: 20px; background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue);">← Back to Directory</button>
+            <div class="panel" id="detailPanelContainer">
+                </div>
+        </div>
+
+        <div id="adminQuickContact" class="view-section">
+            <div class="panel">
+                <h3>Quick Contact Directory</h3>
+                <div class="placeholder-box">Module Under Construction - Fast access to staff mobile numbers and emergency contacts.</div>
+            </div>
+        </div>
+
+        <div id="adminOverview" class="view-section">
+            <div class="grid-cards">
+                <div class="card">
+                    <h4>Pending Requests</h4>
+                    <div class="stat-num" id="statPending" style="color: var(--rs-orange);">0</div>
+                </div>
+                <div class="card">
+                    <h4>Total Staff Tracked</h4>
+                    <div class="stat-num" id="statTotalStaff">0</div>
+                </div>
+            </div>
+            <div class="panel">
+                <h3>Leave Overview</h3>
+                <p style="color: var(--text-muted); line-height: 1.6;">Review pending 'Authorizations' below. Navigate to 'Holiday Entitlements' to onboard new members or update existing balances. Use 'Yearly Planner' to get a bird's-eye view of all 2026 bookings.</p>
+            </div>
+        </div>
+
+        <div id="adminAuth" class="view-section">
+            <div class="panel">
+                <h3>Pending Authorizations</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Staff Member</th>
+                            <th>Department</th>
+                            <th>Dates Requested</th>
+                            <th>Status / Conflicts</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingRequestsBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="adminStaff" class="view-section">
+            <div class="panel" style="background: var(--bg-main); border: 1px solid var(--border-color);">
+                <h3>Quick Add Holiday Baseline</h3>
+                <div style="display: flex; gap: 15px; align-items: flex-end;">
+                    <div style="flex: 1;"><label>Full Name</label><input type="text" id="newStaffName" placeholder="e.g. John Doe"></div>
+                    <div style="flex: 1;"><label>Department</label>
+                        <select id="newStaffDept">
+                            <option value="Drivers">Drivers</option>
+                            <option value="Yard">Yard</option>
+                            <option value="Office">Office</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;"><label>Start Date</label><input type="date" id="newStaffStart"></div>
+                    <div><button class="btn-action" onclick="calculateAndAddStaff()" style="margin-bottom: 15px;">Calculate & Add</button></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Holiday Entitlements</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Department</th>
+                            <th>Total Entitlement</th>
+                            <th>Used</th>
+                            <th>Remaining</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="adminPlanner" class="view-section">
+            <div class="planner-controls">
+                <div>
+                    <label style="color: var(--text-muted); margin-right: 10px; font-weight: bold;">Filter by Staff Member:</label>
+                    <select id="plannerStaffFilter" onchange="renderPlanner()" style="width: auto; display: inline-block; min-width: 200px; margin: 0; padding: 6px;">
+                        </select>
+                </div>
+                <div class="planner-legend">
+                    <div class="legend-item"><div class="legend-box" style="background: var(--frost-blue);"></div> UK Bank Holiday</div>
+                    <div class="legend-item"><div class="legend-box" style="background: var(--rs-orange);"></div> Holiday Booked</div>
+                    <div class="legend-item"><div class="legend-box" style="background: var(--reject-red);"></div> Multiple Overlap</div>
+                </div>
+            </div>
+            
+            <div class="planner-grid" id="plannerContainer">
+                </div>
+        </div>
+
+        <div id="adminStartDisciplinary" class="view-section"><div class="panel"><h3>Initiate Disciplinary Process</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+        <div id="adminOpenCases" class="view-section"><div class="panel"><h3>Open Cases</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+        <div id="adminClosedCases" class="view-section"><div class="panel"><h3>Closed Cases</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+
+        <div id="adminLicenseChecks" class="view-section"><div class="panel"><h3>License Verifications</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+        <div id="adminCPCChecks" class="view-section"><div class="panel"><h3>Driver CPC Expirations</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+
+        <div id="adminPhones" class="view-section"><div class="panel"><h3>Company Issued Phones</h3><div class="placeholder-box">Module Under Construction - Track mobile allocations and numbers.</div></div></div>
+        <div id="adminLaptops" class="view-section"><div class="panel"><h3>Company Issued Laptops</h3><div class="placeholder-box">Module Under Construction - Track laptop assignments and serial numbers.</div></div></div>
+
+
+        <div id="staffOverview" class="view-section">
+            <div class="grid-cards">
+                <div class="card"><h4>Annual Entitlement</h4><div class="stat-num" id="staffTotal">28</div></div>
+                <div class="card"><h4>Days Used/Booked</h4><div class="stat-num" id="staffUsed" style="color: var(--rs-orange);">0</div></div>
+                <div class="card"><h4>Days Remaining</h4><div class="stat-num" id="staffRemaining" style="color: var(--accept-green);">28</div></div>
+            </div>
+            <div class="panel">
+                <h3>My Recent Requests</h3>
+                <table>
+                    <thead><tr><th>Start Date</th><th>End Date</th><th>Status</th></tr></thead>
+                    <tbody id="myRequestsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="staffBook" class="view-section">
+            <div class="panel" style="max-width: 500px;">
+                <h3>Submit Leave Request</h3>
+                <form id="leaveRequestForm" onsubmit="submitLeaveRequest(event)">
+                    <label>First Day of Leave:</label><input type="date" id="leaveStart" required>
+                    <label>Last Day of Leave:</label><input type="date" id="leaveEnd" required>
+                    <button type="submit" class="btn-action" style="width: 100%; margin-top: 10px;">Submit for Authorization</button>
+                </form>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    // --- Frost Transport Roster Database ---
+    // Expanded structure to hold detailed HR profile data (Old staff removed)
+    let staffData = [
+        { id: 1, name: 'Chris Frost', dept: 'Office', entitlement: 28, used: 0, 
+          profile: { fName: 'Chris', sName: 'Frost', job: 'Director', empNo: 'FTS-001', mob: '07700 900001' } },
+        { id: 2, name: 'Andy Carter', dept: 'Office', entitlement: 28, used: 17, profile: { fName: 'Andy', sName: 'Carter', job: 'Office Admin' } },
+        { id: 3, name: 'Craig Robinson', dept: 'Office', entitlement: 28, used: 14, profile: { fName: 'Craig', sName: 'Robinson', job: 'Office Admin' } },
+        { id: 4, name: 'David Jayes', dept: 'Office', entitlement: 28, used: 20, profile: { fName: 'David', sName: 'Jayes', job: 'Office Admin' } },
+        { id: 5, name: 'Hannah Kelly', dept: 'Office', entitlement: 28, used: 18, profile: { fName: 'Hannah', sName: 'Kelly', job: 'Office Admin' } },
+        { id: 6, name: 'Henry Bowler', dept: 'Office', entitlement: 28, used: 23, profile: { fName: 'Henry', sName: 'Bowler', job: 'Office Admin' } },
+        { id: 7, name: 'Jon Hulbert', dept: 'Office', entitlement: 28, used: 28, profile: { fName: 'Jon', sName: 'Hulbert', job: 'Office Admin' } },
+        { id: 8, name: 'Laura Slater', dept: 'Office', entitlement: 28, used: 11, profile: { fName: 'Laura', sName: 'Slater', job: 'Office Admin' } },
+        { id: 9, name: 'Rob Dibe', dept: 'Office', entitlement: 28, used: 10, profile: { fName: 'Rob', sName: 'Dibe', job: 'Office Admin' } },
+        { id: 11, name: 'Darren Brown', dept: 'Yard', entitlement: 28, used: 22, profile: { fName: 'Darren', sName: 'Brown', job: 'Yard Staff' } },
+        { id: 12, name: 'Martyn Basford', dept: 'Yard', entitlement: 28, used: 9, profile: { fName: 'Martyn', sName: 'Basford', job: 'Yard Staff' } },
+        { id: 15, name: 'Dean Young', dept: 'Drivers', entitlement: 28, used: 19, profile: { fName: 'Dean', sName: 'Young', job: 'HGV Driver' } },
+        { id: 17, name: 'Ricardo Morais', dept: 'Drivers', entitlement: 28, used: 9, profile: { fName: 'Ricardo', sName: 'Morais', job: 'HGV Driver' } },
+        { id: 20, name: 'Richard Robinson', dept: 'Drivers', entitlement: 28, used: 18, profile: { fName: 'Richard', sName: 'Robinson', job: 'HGV Driver' } },
+        { id: 21, name: 'Andy West', dept: 'Drivers', entitlement: 28, used: 9, profile: { fName: 'Andy', sName: 'West', job: 'HGV Driver' } },
+        { id: 22, name: 'Callum Lee', dept: 'Drivers', entitlement: 28, used: 12, profile: { fName: 'Callum', sName: 'Lee', job: 'HGV Driver' } },
+        { id: 23, name: 'Joshua Harrison', dept: 'Drivers', entitlement: 28, used: 20, profile: { fName: 'Joshua', sName: 'Harrison', job: 'HGV Driver' } },
+        { id: 24, name: 'Lee Woodcock', dept: 'Drivers', entitlement: 28, used: 31, profile: { fName: 'Lee', sName: 'Woodcock', job: 'HGV Driver' } }, 
+        { id: 25, name: 'Marc Wickham', dept: 'Drivers', entitlement: 28, used: 31, profile: { fName: 'Marc', sName: 'Wickham', job: 'HGV Driver' } },
+        { id: 28, name: 'Richard Spence', dept: 'Drivers', entitlement: 28, used: 18, profile: { fName: 'Richard', sName: 'Spence', job: 'HGV Driver' } },
+        { id: 31, name: 'Tsz Chung Cheung (Marco)', dept: 'Drivers', entitlement: 28, used: 11, profile: { fName: 'Tsz Chung', sName: 'Cheung', job: 'HGV Driver' } },
+        { id: 33, name: 'Barrie Ashmore', dept: 'Drivers', entitlement: 28, used: 0, profile: { fName: 'Barrie', sName: 'Ashmore', job: 'HGV Driver' } }
+    ];
+
+    let requests = [];
+
+    function loadHistoricalData() {
+        // String has been filtered to omit the deleted staff members
+        const rawCSVData = "1:2026-04-03,2026-04-17;2:2026-01-01,2026-01-01|2026-01-30,2026-01-30|2026-04-03,2026-04-10|2026-05-04,2026-05-08|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;3:2026-01-01,2026-01-02|2026-02-02,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;4:2026-01-01,2026-01-02|2026-02-17,2026-02-17|2026-04-03,2026-04-06|2026-04-27,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-10-12,2026-10-16|2026-12-25,2026-12-28;5:2026-01-01,2026-01-01|2026-01-09,2026-01-09|2026-01-22,2026-01-26|2026-02-26,2026-02-26|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-03,2026-08-07|2026-08-31,2026-08-31|2026-12-25,2026-12-28;6:2026-01-01,2026-01-01|2026-03-23,2026-03-27|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-08,2026-06-19|2026-08-31,2026-08-31|2026-12-25,2026-12-28;7:2026-01-01,2026-01-02|2026-03-30,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-29|2026-08-17,2026-08-21|2026-08-31,2026-08-31|2026-11-18,2026-11-25|2026-12-25,2026-12-28;8:2026-01-01,2026-01-01|2026-02-23,2026-02-25|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;9:2026-01-01,2026-01-01|2026-03-05,2026-03-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;11:2026-01-01,2026-01-01|2026-02-20,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-09,2026-06-24|2026-08-28,2026-08-31|2026-12-25,2026-12-28;12:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;15:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-07-20,2026-07-24|2026-08-31,2026-08-31|2026-12-25,2026-12-28;17:2026-01-01,2026-01-01|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;20:2026-01-01,2026-01-01|2026-01-28,2026-01-28|2026-03-04,2026-03-13|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;21:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;22:2026-01-01,2026-01-01|2026-02-18,2026-02-23|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;23:2026-01-01,2026-01-01|2026-02-09,2026-02-09|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-13,2026-08-17|2026-08-31,2026-08-31|2026-11-16,2026-11-25|2026-12-25,2026-12-28;24:2026-01-01,2026-01-01|2026-02-06,2026-02-09|2026-02-16,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-21,2026-05-25|2026-07-06,2026-07-17|2026-08-31,2026-08-31|2026-12-21,2027-01-01;25:2026-01-01,2026-01-02|2026-02-13,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-08|2026-05-25,2026-05-27|2026-07-10,2026-07-27|2026-08-31,2026-08-31|2026-10-16,2026-10-19|2026-12-25,2026-12-28;28:2026-01-01,2026-01-02|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-04-24,2026-04-24|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-08-27,2026-08-31|2026-12-25,2026-12-28;31:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-02-19,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28";
+        
+        let reqId = 1;
+        rawCSVData.split(';').forEach(person => {
+            let parts = person.split(':');
+            let staffId = parseInt(parts[0]);
+            let dates = parts[1].split('|');
+            let staff = staffData.find(s => s.id === staffId);
+            if(!staff) return;
+            
+            dates.forEach(d => {
+                let dp = d.split(',');
+                requests.push({
+                    id: reqId++, staffId: staffId, name: staff.name, dept: staff.dept,
+                    start: dp[0], end: dp[1], status: 'Approved' 
+                });
+            });
+        });
+    }
+
+    loadHistoricalData();
+
+    const ukBankHolidays2026 = [
+        '2026-01-01', '2026-04-03', '2026-04-06', '2026-05-04', 
+        '2026-05-25', '2026-08-31', '2026-12-25', '2026-12-28'
+    ];
+
+    let currentUser = null;
+    let currentRole = null;
+
+    // --- Interaction Logic ---
+    
+    function toggleSubMenu(menuId) {
+        const menu = document.getElementById(menuId);
+        const icon = document.getElementById(menuId + 'Icon');
+        
+        if (menu.classList.contains('open')) {
+            menu.classList.remove('open');
+            icon.innerText = '▼';
+        } else {
+            menu.classList.add('open');
+            icon.innerText = '▲';
+        }
+    }
+
+    function switchTab(tabId, element, isSubItem = false) {
+        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-section'));
+        document.getElementById(tabId).classList.add('active-section');
+        
+        document.querySelectorAll('.nav-item, .nav-sub-item').forEach(nav => nav.classList.remove('active'));
+        
+        if(element) {
+            element.classList.add('active');
+            if (isSubItem) {
+                element.closest('li').parentElement.previousElementSibling.classList.add('active');
+            }
+        }
+
+        const titles = {
+            'adminStaffRegister': 'Live Clock-In Register',
+            'adminAddProfile': 'Add New Staff Profile',
+            'adminViewProfiles': 'Staff Directory',
+            'adminProfileDetail': 'Personnel File',
+            'adminQuickContact': 'Quick Contact Directory',
+            'adminOverview': 'Leave Overview',
+            'adminAuth': 'Leave Authorizations',
+            'adminStaff': 'Holiday Entitlements',
+            'adminPlanner': 'Yearly Leave Planner 2026',
+            'adminStartDisciplinary': 'Start Disciplinary Process',
+            'adminOpenCases': 'Open Disciplinary Cases',
+            'adminClosedCases': 'Closed Disciplinary Cases',
+            'adminLicenseChecks': 'License Verifications',
+            'adminCPCChecks': 'Driver CPC Checks',
+            'adminPhones': 'Company Issued Phones',
+            'adminLaptops': 'Company Issued Laptops',
+            'staffOverview': 'My Leave Summary',
+            'staffBook': 'Request Time Off'
+        };
+        document.getElementById('pageTitle').innerText = titles[tabId] || 'HR Dashboard';
+
+        if (tabId === 'adminPlanner') renderPlanner();
+        if (tabId === 'adminStaffRegister') fetchStaffRegister();
+        if (tabId === 'adminViewProfiles') renderStaffCards();
+    }
+
+    function login() {
+        const userVal = document.getElementById('userSelect').value;
+        
+        document.getElementById('loginWrapper').style.display = 'none';
+        document.getElementById('appWrapper').style.display = 'flex';
+        
+        if(userVal === 'admin') {
+            currentRole = 'admin';
+            currentUser = { name: 'Personnel Manager', dept: 'Office' };
+            document.getElementById('sidebarRole').innerText = 'ADMINISTRATOR';
+            document.getElementById('adminNav').style.display = 'block';
+            document.getElementById('staffNav').style.display = 'none';
+            document.getElementById('currentUserDisplay').innerText = 'Personnel Dept';
+            
+            let filterSelect = document.getElementById('plannerStaffFilter');
+            filterSelect.innerHTML = '<option value="all">View All Staff Overlaps</option>';
+            staffData.sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
+                filterSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.dept})</option>`;
+            });
+
+            switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
+            renderAdminData();
+        } else {
+            // Placeholder logic if you ever add generic staff login functionality again
+            currentRole = 'staff';
+            document.getElementById('adminNav').style.display = 'none';
+            document.getElementById('staffNav').style.display = 'block';
+            
+            // currentUser lookup would happen here...
+            
+            document.getElementById('sidebarRole').innerText = 'STAFF';
+            document.getElementById('currentUserDisplay').innerText = `Logged in User`;
+            switchTab('staffOverview', document.querySelector('#staffNav .nav-item'));
+            renderStaffData();
+        }
+    }
+
+    function logout() {
+        location.reload(); // Hard reset for complete safety logout
+    }
+
+    // --- NEW: Staff Profiles Features ---
+
+    function submitProfileForm(e) {
+        e.preventDefault();
+        
+        // Grab all inputs
+        const fName = document.getElementById('profFName').value;
+        const sName = document.getElementById('profSName').value;
+        const dept = document.getElementById('profDept').value;
+        const fullName = `${fName} ${sName}`;
+
+        const newStaff = {
+            id: staffData.length + 1,
+            name: fullName,
+            dept: dept,
+            entitlement: 28, // Standard baseline
+            used: 0,
+            profile: {
+                fName: fName,
+                sName: sName,
+                dob: document.getElementById('profDOB').value,
+                nat: document.getElementById('profNat').value,
+                add1: document.getElementById('profAdd1').value,
+                add2: document.getElementById('profAdd2').value,
+                add3: document.getElementById('profAdd3').value,
+                post: document.getElementById('profPost').value,
+                mob: document.getElementById('profMob').value,
+                email: document.getElementById('profEmail').value,
+                empNo: document.getElementById('profEmpNo').value,
+                join: document.getElementById('profJoin').value,
+                job: document.getElementById('profJob').value,
+                hours: document.getElementById('profHours').value,
+                emergName: document.getElementById('profEmergName').value,
+                emergNum: document.getElementById('profEmergNum').value,
+                ni: document.getElementById('profNI').value.toUpperCase(),
+                bankAcc: document.getElementById('profBankAcc').value,
+                bankSort: document.getElementById('profBankSort').value
+            }
+        };
+
+        staffData.push(newStaff);
+        
+        // In a live app, you would send this to Supabase here:
+        // await supabase.from('staff_profile').insert([newStaff.profile]);
+
+        alert(`${fullName} has been added to the HR system.`);
+        document.getElementById('addProfileForm').reset();
+        
+        // Automatically switch to view profiles to see the new card
+        switchTab('adminViewProfiles', document.querySelector('#staffProfilesSubMenu li:nth-child(2) a'), true);
+        renderAdminData(); // Refresh tables in background
+    }
+
+    function renderStaffCards() {
+        const container = document.getElementById('profileCardContainer');
+        const searchTerm = document.getElementById('staffSearch') ? document.getElementById('staffSearch').value.toLowerCase() : '';
+        
+        let filteredStaff = staffData.filter(s => s.name.toLowerCase().includes(searchTerm));
+        
+        container.innerHTML = filteredStaff.sort((a,b) => a.name.localeCompare(b.name)).map(s => {
+            const initials = s.name.split(' ').map(n => n[0]).join('');
+            const jobTitle = s.profile && s.profile.job ? s.profile.job : s.dept;
+            return `
+                <div class="profile-card" onclick="viewStaffDetail(${s.id})">
+                    <div class="profile-card-icon">${initials}</div>
+                    <h4>${s.name}</h4>
+                    <p>${jobTitle}</p>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function filterProfiles() {
+        renderStaffCards();
+    }
+
+    function viewStaffDetail(id) {
+        const staff = staffData.find(s => s.id === id);
+        if(!staff) return;
+
+        const p = staff.profile || {};
+        const initials = staff.name.split(' ').map(n => n[0]).join('');
+
+        const html = `
+            <div class="profile-detail-header">
+                <div class="profile-card-icon" style="margin:0; width:80px; height:80px; font-size:2rem;">${initials}</div>
+                <div>
+                    <h2 style="margin: 0 0 5px 0; color: var(--frost-blue);">${staff.name}</h2>
+                    <p style="margin: 0; color: var(--text-muted); font-size: 1.1em;">${p.job || staff.dept} | ID: ${p.empNo || 'N/A'}</p>
+                </div>
+            </div>
+
+            <div class="profile-detail-data">
+                <div class="data-group">
+                    <h4>Personal Information</h4>
+                    <div class="data-row"><span class="data-label">Date of Birth</span><span class="data-val">${p.dob || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Nationality</span><span class="data-val">${p.nat || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Address</span><span class="data-val">${[p.add1, p.add2, p.add3, p.post].filter(Boolean).join(', ') || '-'}</span></div>
+                </div>
+
+                <div class="data-group">
+                    <h4>Contact Details</h4>
+                    <div class="data-row"><span class="data-label">Mobile</span><span class="data-val">${p.mob || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Email</span><span class="data-val">${p.email || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Emergency Contact</span><span class="data-val">${p.emergName || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Emergency Phone</span><span class="data-val">${p.emergNum || '-'}</span></div>
+                </div>
+
+                <div class="data-group">
+                    <h4>Employment</h4>
+                    <div class="data-row"><span class="data-label">Department</span><span class="data-val">${staff.dept}</span></div>
+                    <div class="data-row"><span class="data-label">Date Joined</span><span class="data-val">${p.join || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Contracted Hours</span><span class="data-val">${p.hours ? p.hours + ' hrs' : '-'}</span></div>
+                </div>
+
+                <div class="data-group">
+                    <h4>Confidential / Finance</h4>
+                    <div class="data-row"><span class="data-label">NI Number</span><span class="data-val">${p.ni || '***'}</span></div>
+                    <div class="data-row"><span class="data-label">Account No</span><span class="data-val">${p.bankAcc || '***'}</span></div>
+                    <div class="data-row"><span class="data-label">Sort Code</span><span class="data-val">${p.bankSort || '***'}</span></div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('detailPanelContainer').innerHTML = html;
+        switchTab('adminProfileDetail');
+    }
+
+    // --- Dynamic Supabase Fetch Function for Live Register ---
+    async function fetchStaffRegister() {
+        const tbody = document.getElementById('registerBody');
+        const supabaseUrl = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idWR3bnd4dWNsdXdnYmtnYmZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMDQwMjYsImV4cCI6MjA5MDc4MDAyNn0.xFv-FiQ894vdfJuQYWQyF4WzQXmlnmnKvz_c8nuzl5Q';
+        
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">Fetching Live Data from Supabase...</td></tr>';
+        
+        try {
+            const now = new Date();
+            const dayOfWeek = now.getDay(); 
+            const lastSunday = new Date(now);
+            lastSunday.setDate(now.getDate() - dayOfWeek);
+            lastSunday.setHours(0, 0, 0, 0);
+            
+            const response = await fetch(`${supabaseUrl}/rest/v1/fleet_logs?created_at=gte.${lastSunday.toISOString()}&order=created_at.asc&limit=1000`, {
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-muted);">No clock-in records found for this week.</td></tr>';
+                return;
+            }
+            
+            let driversMap = {};
+            
+            data.forEach(log => {
+                const name = log.driver_name || 'Unknown';
+                if (!driversMap[name]) {
+                    driversMap[name] = { name: name, start: null, end: null, status: 'OFF' };
+                }
+                
+                if (log.action_type === 'START') {
+                    driversMap[name].start = log.created_at;
+                    driversMap[name].end = null; 
+                    driversMap[name].status = 'ON';
+                } else if (log.action_type === 'END') {
+                    driversMap[name].end = log.created_at;
+                    driversMap[name].status = 'OFF';
+                }
+            });
+            
+            let driverArray = Object.values(driversMap);
+            
+            driverArray.sort((a, b) => {
+                if (a.status === 'ON' && b.status === 'OFF') return -1;
+                if (a.status === 'OFF' && b.status === 'ON') return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            const formatTime = (isoString) => {
+                if (!isoString) return '-';
+                const d = new Date(isoString);
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '.');
+            };
+            
+            tbody.innerHTML = driverArray.map(d => {
+                const startStr = formatTime(d.start);
+                const endStr = formatTime(d.end);
+                
+                const statusHtml = d.status === 'ON' 
+                    ? `<span style="display:inline-block; padding: 4px 10px; background:var(--accept-green); color:#fff; border-radius:4px; font-size:0.85em; font-weight:bold;">On Shift</span>`
+                    : `<span style="display:inline-block; padding: 4px 10px; background:var(--reject-red); color:#fff; border-radius:4px; font-size:0.85em; font-weight:bold;">Clocked Off</span>`;
+                
+                return `<tr>
+                    <td style="font-weight:bold;">${d.name}</td>
+                    <td>${startStr}</td>
+                    <td>${endStr}</td>
+                    <td>${statusHtml}</td>
+                </tr>`;
+            }).join('');
+            
+        } catch (error) {
+            console.error("Supabase Error:", error);
+            tbody.innerHTML = `<tr><td colspan="4" style="color:var(--reject-red); padding: 20px;">Connection Failed: ${error.message}</td></tr>`;
+        }
+    }
+
+    // --- Admin Leave Functions ---
+    function renderAdminData() {
+        const pendingCount = requests.filter(r => r.status === 'Pending').length;
+        document.getElementById('statPending').innerText = pendingCount;
+        document.getElementById('statTotalStaff').innerText = staffData.length;
+
+        const staffBody = document.getElementById('staffBody');
+        staffBody.innerHTML = '';
+        staffData.forEach(staff => {
+            const rem = staff.entitlement - staff.used;
+            let statusColor = 'var(--accept-green)';
+            if (rem < 0) statusColor = 'var(--reject-red)';
+            else if (rem <= 5) statusColor = 'var(--rs-orange)';
+
+            staffBody.innerHTML += `
+                <tr>
+                    <td>${staff.name}</td>
+                    <td>${staff.dept}</td>
+                    <td>${staff.entitlement}</td>
+                    <td>${staff.used}</td>
+                    <td style="color: ${statusColor}; font-weight:bold;">${rem}</td>
+                    <td>
+                        <button style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); padding: 5px 10px; margin-right: 5px;" onclick="editStaff(${staff.id})">Edit</button>
+                        <button style="background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red); padding: 5px 10px;" onclick="removeStaff(${staff.id})">Remove</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        const reqBody = document.getElementById('pendingRequestsBody');
+        reqBody.innerHTML = '';
+        requests.filter(r => r.status === 'Pending').forEach(req => {
+            const hasConflict = checkConflicts(req);
+            const conflictHtml = hasConflict ? `<span class="conflict-warning">⚠️ Conflict in ${req.dept}</span>` : '<span style="color:var(--text-muted)">Clear</span>';
+
+            reqBody.innerHTML += `
+                <tr>
+                    <td><strong>${req.name}</strong></td>
+                    <td>${req.dept}</td>
+                    <td>${req.start} to ${req.end}</td>
+                    <td>${conflictHtml}</td>
+                    <td>
+                        <button class="btn-accept" onclick="processRequest(${req.id}, 'Approved')">Approve</button>
+                        <button class="btn-reject" onclick="processRequest(${req.id}, 'Rejected')">Reject</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function removeStaff(id) {
+        const staffMember = staffData.find(s => s.id === id);
+        const confirmDelete = confirm(`WARNING: Are you sure you want to permanently remove ${staffMember.name}?`);
+        if (confirmDelete) {
+            staffData = staffData.filter(s => s.id !== id);
+            requests = requests.filter(r => r.staffId !== id);
+            renderAdminData();
+            renderStaffCards();
+        }
+    }
+
+    function editStaff(id) {
+        const staff = staffData.find(s => s.id === id);
+        const newName = prompt("Edit Staff Name:", staff.name); if (newName === null) return; 
+        const newDept = prompt("Edit Department (Drivers, Yard, Office):", staff.dept); if (newDept === null) return;
+        const newEnt = prompt("Edit Total Entitlement:", staff.entitlement); if (newEnt === null) return;
+        const newUsed = prompt("Edit Days Used:", staff.used); if (newUsed === null) return;
+
+        staff.name = newName.trim() !== '' ? newName : staff.name;
+        staff.dept = newDept.trim() !== '' ? newDept : staff.dept;
+        staff.entitlement = !isNaN(parseInt(newEnt)) ? parseInt(newEnt) : staff.entitlement;
+        staff.used = !isNaN(parseInt(newUsed)) ? parseInt(newUsed) : staff.used;
+
+        renderAdminData();
+        renderStaffCards();
+    }
+
+    function renderPlanner() {
+        const year = 2026;
+        const container = document.getElementById('plannerContainer');
+        container.innerHTML = '';
+        
+        const filterVal = document.getElementById('plannerStaffFilter').value;
+        const staffFilterId = filterVal === 'all' ? null : parseInt(filterVal);
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        
+        monthNames.forEach((monthName, monthIndex) => {
+            const card = document.createElement('div');
+            card.className = 'month-card';
+            
+            let html = `<h4 class="month-title">${monthName}</h4>
+                <div class="days-grid">
+                    <div class="day-header">M</div><div class="day-header">T</div><div class="day-header">W</div>
+                    <div class="day-header">T</div><div class="day-header">F</div><div class="day-header">S</div><div class="day-header">S</div>`;
+            
+            const firstDay = new Date(year, monthIndex, 1).getDay(); 
+            const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1; 
+            const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+            
+            for(let i = 0; i < adjustedFirstDay; i++) { html += `<div class="day-empty"></div>`; }
+            
+            for(let d = 1; d <= daysInMonth; d++) {
+                const dateString = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                let classes = ['day-cell'];
+                let tooltip = [];
+                
+                if (ukBankHolidays2026.includes(dateString)) {
+                    classes.push('day-bank-holiday'); tooltip.push('UK Bank Holiday');
+                }
+                
+                let bookedStaff = requests.filter(r => r.status === 'Approved' && r.start <= dateString && r.end >= dateString);
+                if (staffFilterId) bookedStaff = bookedStaff.filter(s => s.staffId === staffFilterId);
+
+                if (bookedStaff.length === 1 && !classes.includes('day-bank-holiday')) {
+                    classes.push('day-booked-single'); tooltip.push(`${bookedStaff[0].name} (${bookedStaff[0].dept})`);
+                } else if (bookedStaff.length > 1 && !classes.includes('day-bank-holiday')) {
+                    classes.push('day-booked-multi'); tooltip.push(bookedStaff.map(s => `${s.name} (${s.dept})`).join(' | '));
+                }
+                
+                const titleAttr = tooltip.length > 0 ? `title="${tooltip.join(' | ')}"` : '';
+                html += `<div class="${classes.join(' ')}" ${titleAttr}>${d}</div>`;
+            }
+            
+            html += `</div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        });
+    }
+
+    function checkConflicts(newReq) { return requests.some(r => r.dept === newReq.dept && r.id !== newReq.id && r.status === 'Approved' && r.start <= newReq.end && r.end >= newReq.start); }
+
+    function processRequest(id, status) {
+        const req = requests.find(r => r.id === id);
+        req.status = status;
+        if(status === 'Approved') {
+            const days = Math.ceil((new Date(req.end) - new Date(req.start)) / (1000 * 60 * 60 * 24)) + 1;
+            const staff = staffData.find(s => s.id === req.staffId);
+            staff.used += days;
+        }
+        renderAdminData();
+    }
+
+    function calculateAndAddStaff() {
+        // Quick add for baseline holiday only
+        const name = document.getElementById('newStaffName').value;
+        const dept = document.getElementById('newStaffDept').value;
+        const startInput = document.getElementById('newStaffStart').value;
+        if(!name || !startInput) return alert("Please fill all fields");
+        const startDate = new Date(startInput);
+        const yearEnd = new Date(startDate.getFullYear(), 11, 31);
+        const daysRemainingInYear = Math.ceil((yearEnd - startDate) / (1000 * 60 * 60 * 24));
+        const proRataDays = Math.round((daysRemainingInYear / 365) * 28);
+
+        staffData.push({ id: staffData.length + 1, name: name, dept: dept, entitlement: proRataDays, used: 0, profile: {fName: name.split(' ')[0], sName: name.split(' ')[1] || ''} });
+        alert(`Added ${name}! Pro-rata entitlement: ${proRataDays} days.`);
+        document.getElementById('newStaffName').value = ''; document.getElementById('newStaffStart').value = '';
+        renderAdminData(); renderStaffCards();
+    }
+
+    // --- Staff Functions ---
+    function renderStaffData() {
+        document.getElementById('staffTotal').innerText = currentUser.entitlement;
+        document.getElementById('staffUsed').innerText = currentUser.used;
+        const rem = currentUser.entitlement - currentUser.used;
+        let remColor = 'var(--accept-green)';
+        if (rem < 0) remColor = 'var(--reject-red)'; else if (rem <= 5) remColor = 'var(--rs-orange)';
+        const remainingElement = document.getElementById('staffRemaining');
+        remainingElement.innerText = rem; remainingElement.style.color = remColor;
+
+        const myReqBody = document.getElementById('myRequestsBody');
+        myReqBody.innerHTML = '';
+        const myRequests = requests.filter(r => r.staffId === currentUser.id);
+        
+        if(myRequests.length === 0) {
+            myReqBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No recent requests</td></tr>`;
+        } else {
+            myRequests.forEach(req => {
+                let statusColor = req.status === 'Approved' ? 'var(--accept-green)' : (req.status === 'Rejected' ? 'var(--reject-red)' : 'var(--rs-orange)');
+                myReqBody.innerHTML += `<tr><td>${req.start}</td><td>${req.end}</td><td style="color: ${statusColor}; font-weight:bold;">${req.status}</td></tr>`;
+            });
+        }
+    }
+
+    function submitLeaveRequest(e) {
+        e.preventDefault();
+        const start = document.getElementById('leaveStart').value;
+        const end = document.getElementById('leaveEnd').value;
+        requests.push({ id: requests.length + 1, staffId: currentUser.id, name: currentUser.name, dept: currentUser.dept, start: start, end: end, status: 'Pending' });
+        alert("Request sent to personnel for authorization.");
+        document.getElementById('leaveRequestForm').reset();
+        renderStaffData();
+        switchTab('staffOverview', document.querySelector('#staffNav .nav-item')); 
+    }
+</script>
+</body>
+</html>
