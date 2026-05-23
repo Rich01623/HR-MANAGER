@@ -740,6 +740,7 @@
             // Load saved staff profile records and holiday entitlements from Supabase before drawing cards, tables and planner filters.
             await loadStaffProfilesFromSupabase();
             await loadHolidayEntitlementsFromSupabase();
+            await loadHolidayRequestsFromSupabase();
             populatePlannerStaffFilter();
 
             switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
@@ -1426,7 +1427,7 @@
             <div class="profile-detail-data">
                 <div class="data-group">
                     <h4>Personal Information</h4>
-                    <div class="data-row"><span class="data-label">Date of Birth</span><span class="data-val">${p.dob || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Date of Birth</span><span class="data-val">${formatDateUK(p.dob)}</span></div>
                     <div class="data-row"><span class="data-label">Nationality</span><span class="data-val">${p.nat || '-'}</span></div>
                     <div class="data-row"><span class="data-label">Address</span><span class="data-val">${[p.add1, p.add2, p.add3, p.post].filter(Boolean).join(', ') || '-'}</span></div>
                 </div>
@@ -1442,7 +1443,7 @@
                 <div class="data-group">
                     <h4>Employment</h4>
                     <div class="data-row"><span class="data-label">Department</span><span class="data-val">${staff.dept}</span></div>
-                    <div class="data-row"><span class="data-label">Date Joined</span><span class="data-val">${p.join || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Date Joined</span><span class="data-val">${formatDateUK(p.join)}</span></div>
                     <div class="data-row"><span class="data-label">Contracted Hours</span><span class="data-val">${p.hours ? p.hours + ' hrs' : '-'}</span></div>
                 </div>
 
@@ -1538,9 +1539,171 @@
         }
     }
 
+
+    // --- Supabase Holiday Request Functions ---
+
+    function formatStatusForApp(status) {
+        const normalised = (status || '').toString().trim().toLowerCase();
+        if (normalised === 'approved') return 'Approved';
+        if (normalised === 'denied' || normalised === 'rejected') return 'Denied';
+        if (normalised === 'cancelled') return 'Cancelled';
+        return 'Pending';
+    }
+
+    function statusForSupabase(status) {
+        const normalised = (status || '').toString().trim().toLowerCase();
+        if (normalised === 'approved') return 'approved';
+        if (normalised === 'denied' || normalised === 'rejected') return 'denied';
+        if (normalised === 'cancelled') return 'cancelled';
+        return 'pending';
+    }
+
+    function isPendingHolidayRequest(req) {
+        return formatStatusForApp(req.status) === 'Pending';
+    }
+
+    function isApprovedHolidayRequest(req) {
+        return formatStatusForApp(req.status) === 'Approved';
+    }
+
+    function calculateRequestedDays(startDate, endDate) {
+        if (!startDate || !endDate) return 0;
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T00:00:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+        return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    function formatDateUK(dateValue) {
+        if (!dateValue) return '-';
+        const datePart = dateValue.toString().split('T')[0];
+        const parts = datePart.split('-');
+        if (parts.length !== 3) return dateValue;
+        const [year, month, day] = parts;
+        return `${day}/${month}/${year.slice(-2)}`;
+    }
+
+    function escapeHtml(value) {
+        return (value ?? '').toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function jsString(value) {
+        return JSON.stringify((value ?? '').toString());
+    }
+
+    function findStaffForHolidayRequest(row) {
+        const empNo = normaliseText(row.employee_number);
+        const fullName = normaliseText(row.full_name || `${row.first_name || ''} ${row.surname || ''}`);
+
+        return staffData.find(staff => {
+            const profile = staff.profile || {};
+            if (empNo && normaliseText(profile.empNo) === empNo) return true;
+            if (fullName && normaliseText(staff.name) === fullName) return true;
+            return false;
+        });
+    }
+
+    function upsertRequestIntoLocalState(row) {
+        const staff = findStaffForHolidayRequest(row);
+        const fullName = row.full_name || `${row.first_name || ''} ${row.surname || ''}`.trim() || 'Unknown Staff Member';
+        const appStatus = formatStatusForApp(row.status);
+        const existing = requests.find(req => req.supabaseRequestId === row.id);
+        const requestData = {
+            id: existing ? existing.id : row.id,
+            supabaseRequestId: row.id,
+            staffId: staff ? staff.id : null,
+            name: staff ? staff.name : fullName,
+            dept: row.department || (staff ? staff.dept : 'Drivers'),
+            start: row.start_date,
+            end: row.end_date,
+            status: appStatus,
+            daysRequested: Number(row.days_requested || calculateRequestedDays(row.start_date, row.end_date)),
+            managerResponse: row.manager_response || '',
+            denialReason: row.denial_reason || '',
+            requestedBy: row.requested_by || '',
+            reviewedBy: row.reviewed_by || '',
+            reviewedAt: row.reviewed_at || '',
+            isFromSupabase: true,
+            entitlementAtRequest: row.total_entitlement !== undefined ? Number(row.total_entitlement || 0) : null,
+            usedAtRequest: row.used_days !== undefined ? Number(row.used_days || 0) : null,
+            remainingAtRequest: row.remaining_days !== undefined ? Number(row.remaining_days || 0) : null
+        };
+
+        if (existing) {
+            Object.assign(existing, requestData);
+        } else {
+            requests.push(requestData);
+        }
+    }
+
+    async function loadHolidayRequestsFromSupabase() {
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?select=*&order=created_at.desc`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Supabase holiday request load failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            if (!Array.isArray(rows)) return;
+
+            rows.forEach(upsertRequestIntoLocalState);
+            renderAdminData();
+            if (document.getElementById('plannerContainer')) renderPlanner();
+        } catch (error) {
+            console.error('Supabase holiday request load error:', error);
+            alert(`Holiday requests could not be loaded from Supabase: ${error.message}. The app will continue using the current local requests.`);
+        }
+    }
+
+    async function updateHolidayRequestDecisionInSupabase(req, decision, denialReason = '') {
+        if (!req.supabaseRequestId) return;
+
+        const isApproved = decision === 'Approved';
+        const payload = {
+            status: statusForSupabase(decision),
+            manager_response: isApproved ? 'Approved by Personnel Manager' : `Denied: ${denialReason}`,
+            denial_reason: isApproved ? null : denialReason,
+            reviewed_by: currentUser ? currentUser.name : 'Personnel Manager',
+            reviewed_at: new Date().toISOString()
+        };
+
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?id=eq.${encodeURIComponent(req.supabaseRequestId)}`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            let errData = {};
+            try { errData = await response.json(); } catch (_) {}
+            throw new Error(errData.message || `Holiday request decision failed with status ${response.status}`);
+        }
+
+        const rows = await response.json();
+        if (Array.isArray(rows) && rows.length > 0) upsertRequestIntoLocalState(rows[0]);
+    }
+
     // --- Admin Leave Functions ---
     function renderAdminData() {
-        const pendingCount = requests.filter(r => r.status === 'Pending').length;
+        const pendingCount = requests.filter(isPendingHolidayRequest).length;
         document.getElementById('statPending').innerText = pendingCount;
         document.getElementById('statTotalStaff').innerText = staffData.length;
 
@@ -1554,8 +1717,8 @@
 
             staffBody.innerHTML += `
                 <tr>
-                    <td>${staff.name}</td>
-                    <td>${staff.dept}</td>
+                    <td>${escapeHtml(staff.name)}</td>
+                    <td>${escapeHtml(staff.dept)}</td>
                     <td>${staff.entitlement}</td>
                     <td>${staff.used}</td>
                     <td style="color: ${statusColor}; font-weight:bold;">${rem}</td>
@@ -1569,19 +1732,37 @@
 
         const reqBody = document.getElementById('pendingRequestsBody');
         reqBody.innerHTML = '';
-        requests.filter(r => r.status === 'Pending').forEach(req => {
-            const hasConflict = checkConflicts(req);
-            const conflictHtml = hasConflict ? `<span class="conflict-warning">⚠️ Conflict in ${req.dept}</span>` : '<span style="color:var(--text-muted)">Clear</span>';
+        const pendingRequests = requests.filter(isPendingHolidayRequest);
+
+        if (pendingRequests.length === 0) {
+            reqBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">No pending holiday requests.</td></tr>';
+            return;
+        }
+
+        pendingRequests.forEach(req => {
+            const staff = staffData.find(s => s.id === req.staffId) || null;
+            const daysRequested = Number(req.daysRequested || calculateRequestedDays(req.start, req.end));
+            const entitlement = staff ? Number(staff.entitlement || 0) : req.entitlementAtRequest;
+            const used = staff ? Number(staff.used || 0) : req.usedAtRequest;
+            const remaining = staff ? entitlement - used : req.remainingAtRequest;
+            const clashes = findHolidayClashes(req);
+            const clashNames = [...new Set(clashes.map(c => c.name).filter(Boolean))];
+            const conflictHtml = clashNames.length > 0
+                ? `<span class="conflict-warning">⚠️ Clashes with: ${escapeHtml(clashNames.join(', '))}</span>`
+                : '<span style="color:var(--accept-green); font-weight:bold;">No clash</span>';
+            const entitlementHtml = remaining === null || remaining === undefined || Number.isNaN(Number(remaining))
+                ? `<span style="color:var(--text-muted);">Entitlement not found</span>`
+                : `<span>${daysRequested} day(s) requested</span><br><span style="color:var(--text-muted); font-size:0.85em;">Entitlement: ${entitlement} | Used: ${used} | Remaining: ${remaining}</span>${daysRequested > remaining ? '<br><span class="conflict-warning">⚠️ Request exceeds remaining entitlement</span>' : ''}`;
 
             reqBody.innerHTML += `
                 <tr>
-                    <td><strong>${req.name}</strong></td>
-                    <td>${req.dept}</td>
-                    <td>${req.start} to ${req.end}</td>
+                    <td><strong>${escapeHtml(req.name)}</strong><br><span style="color:var(--text-muted); font-size:0.85em;">${escapeHtml(req.requestedBy || 'Drivers App')}</span></td>
+                    <td>${escapeHtml(req.dept)}</td>
+                    <td>${escapeHtml(formatDateUK(req.start))} to ${escapeHtml(formatDateUK(req.end))}<br>${entitlementHtml}</td>
                     <td>${conflictHtml}</td>
                     <td>
-                        <button class="btn-accept" onclick="processRequest(${req.id}, 'Approved')">Approve</button>
-                        <button class="btn-reject" onclick="processRequest(${req.id}, 'Rejected')">Reject</button>
+                        <button class="btn-accept" onclick="processRequest(${jsString(req.id)}, 'Approved')">Approve</button>
+                        <button class="btn-reject" onclick="processRequest(${jsString(req.id)}, 'Denied')">Deny</button>
                     </td>
                 </tr>
             `;
@@ -1664,7 +1845,7 @@
                     classes.push('day-bank-holiday'); tooltip.push('UK Bank Holiday');
                 }
                 
-                let bookedStaff = requests.filter(r => r.status === 'Approved' && r.start <= dateString && r.end >= dateString);
+                let bookedStaff = requests.filter(r => isApprovedHolidayRequest(r) && r.start <= dateString && r.end >= dateString);
                 if (staffFilterId) bookedStaff = bookedStaff.filter(s => s.staffId === staffFilterId);
 
                 if (bookedStaff.length === 1 && !classes.includes('day-bank-holiday')) {
@@ -1683,25 +1864,59 @@
         });
     }
 
-    function checkConflicts(newReq) { return requests.some(r => r.dept === newReq.dept && r.id !== newReq.id && r.status === 'Approved' && r.start <= newReq.end && r.end >= newReq.start); }
+    function findHolidayClashes(newReq) {
+        return requests.filter(r => {
+            if (!isApprovedHolidayRequest(r)) return false;
+            if (r.id === newReq.id || r.supabaseRequestId === newReq.supabaseRequestId) return false;
+            if ((r.dept || '') !== (newReq.dept || '')) return false;
+            return r.start <= newReq.end && r.end >= newReq.start;
+        });
+    }
+
+    function checkConflicts(newReq) {
+        return findHolidayClashes(newReq).length > 0;
+    }
 
     async function processRequest(id, status) {
-        const req = requests.find(r => r.id === id);
-        if (!req) return;
-        req.status = status;
-        if(status === 'Approved') {
-            const days = Math.ceil((new Date(req.end) - new Date(req.start)) / (1000 * 60 * 60 * 24)) + 1;
-            const staff = staffData.find(s => s.id === req.staffId);
-            if (staff) {
-                staff.used += days;
-                try {
-                    await saveHolidayEntitlementToSupabase(staff);
-                } catch (error) {
-                    alert(`The request was approved locally, but the holiday total could not be saved to Supabase: ${error.message}`);
-                }
-            }
+        const req = requests.find(r => String(r.id) === String(id) || String(r.supabaseRequestId) === String(id));
+        if (!req) return alert('Could not find this holiday request.');
+
+        const previousStatus = req.status;
+        const decision = formatStatusForApp(status);
+        let denialReason = '';
+
+        if (decision === 'Denied') {
+            denialReason = prompt(`Why is ${req.name}'s holiday request being denied?`);
+            if (denialReason === null) return;
+            denialReason = denialReason.trim();
+            if (!denialReason) return alert('Please enter a reason before denying the holiday request.');
         }
+
+        const staff = staffData.find(s => s.id === req.staffId);
+        const days = Number(req.daysRequested || calculateRequestedDays(req.start, req.end));
+
+        req.status = decision;
+        req.denialReason = denialReason;
+        req.managerResponse = decision === 'Approved' ? 'Approved by Personnel Manager' : `Denied: ${denialReason}`;
+
+        try {
+            await updateHolidayRequestDecisionInSupabase(req, decision, denialReason);
+
+            if (decision === 'Approved' && formatStatusForApp(previousStatus) !== 'Approved' && staff) {
+                staff.used = Number(staff.used || 0) + days;
+                await saveHolidayEntitlementToSupabase(staff);
+            }
+
+            alert(decision === 'Approved' ? `${req.name}'s holiday request has been approved.` : `${req.name}'s holiday request has been denied.`);
+        } catch (error) {
+            req.status = previousStatus;
+            req.denialReason = '';
+            req.managerResponse = '';
+            alert(`Could not save the holiday decision to Supabase: ${error.message}`);
+        }
+
         renderAdminData();
+        renderPlanner();
     }
 
     async function calculateAndAddStaff() {
