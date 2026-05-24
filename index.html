@@ -362,7 +362,7 @@
                     <button class="btn-action" onclick="fetchStaffRegister()">↻ Refresh Live Data</button>
                 </div>
                 <p style="color: var(--text-muted); margin-top: -10px; margin-bottom: 20px; font-size: 0.9em;">
-                    Displaying shift activity for the current week. Automatically resets every Sunday.
+                    Displaying shift activity for today only. Automatically clears at midnight.
                 </p>
                 <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 6px;">
                     <table id="registerTable">
@@ -566,9 +566,99 @@
                 </div>
         </div>
 
-        <div id="adminStartDisciplinary" class="view-section"><div class="panel"><h3>Initiate Disciplinary Process</h3><div class="placeholder-box">Module Under Construction</div></div></div>
-        <div id="adminOpenCases" class="view-section"><div class="panel"><h3>Open Cases</h3><div class="placeholder-box">Module Under Construction</div></div></div>
-        <div id="adminClosedCases" class="view-section"><div class="panel"><h3>Closed Cases</h3><div class="placeholder-box">Module Under Construction</div></div></div>
+        <div id="adminStartDisciplinary" class="view-section">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div>
+                        <h3 id="disciplinaryFormTitle" style="margin-bottom: 5px;">Start Disciplinary Case</h3>
+                        <p style="color: var(--text-muted); margin: 0;">Create a disciplinary record, close it immediately, or adjourn it for later review.</p>
+                    </div>
+                    <button type="button" onclick="resetDisciplinaryForm()" style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue);">New Case</button>
+                </div>
+
+                <form id="disciplinaryForm" onsubmit="event.preventDefault();" class="form-grid">
+                    <input type="hidden" id="disciplinaryCaseId">
+                    <div class="full-width">
+                        <label>Full Name</label>
+                        <input type="text" id="discFullName" list="disciplinaryStaffList" placeholder="Start typing a staff member's name" oninput="handleDisciplinaryNameInput()" required>
+                        <datalist id="disciplinaryStaffList"></datalist>
+                    </div>
+
+                    <div class="full-width">
+                        <div id="disciplinaryEmployeeSummary" class="data-group" style="display: none; margin-bottom: 10px;">
+                            <h4>Employee Details</h4>
+                            <div class="data-row"><span class="data-label">Full Name</span><span class="data-val" id="discSummaryName">-</span></div>
+                            <div class="data-row"><span class="data-label">Employee Number</span><span class="data-val" id="discSummaryEmpNo">-</span></div>
+                            <div class="data-row"><span class="data-label">NI Number</span><span class="data-val" id="discSummaryNI">-</span></div>
+                        </div>
+                    </div>
+
+                    <div><label>Date</label><input type="date" id="discDate" required></div>
+                    <div><label>Time</label><input type="time" id="discTime" required></div>
+
+                    <div class="full-width">
+                        <label>Disciplinary Details</label>
+                        <textarea id="discDetails" rows="7" required style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); resize: vertical;"></textarea>
+                    </div>
+
+                    <div class="full-width">
+                        <label>Disciplinary Outcome</label>
+                        <textarea id="discOutcome" rows="4" required style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); resize: vertical;"></textarea>
+                    </div>
+
+                    <div class="full-width" style="display: flex; gap: 12px; margin-top: 10px;">
+                        <button type="button" class="btn-accept" onclick="submitDisciplinaryCase('closed')" style="flex: 1; padding: 12px;">Case Closed</button>
+                        <button type="button" class="btn-action" onclick="submitDisciplinaryCase('open')" style="flex: 1; padding: 12px;">Adjourned</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="adminOpenCases" class="view-section">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Open Disciplinary Cases</h3>
+                    <button class="btn-action" onclick="loadDisciplinaryCasesFromSupabase(true)">↻ Refresh Cases</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Full Name</th>
+                            <th>Employee Number</th>
+                            <th>Date / Time</th>
+                            <th>Outcome / Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="openDisciplinaryBody">
+                        <tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">No open disciplinary cases loaded.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="adminClosedCases" class="view-section">
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Closed Disciplinary Cases</h3>
+                    <button class="btn-action" onclick="loadDisciplinaryCasesFromSupabase(true)">↻ Refresh Cases</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Full Name</th>
+                            <th>Employee Number</th>
+                            <th>Date / Time</th>
+                            <th>Outcome</th>
+                            <th>Closed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="closedDisciplinaryBody">
+                        <tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">No closed disciplinary cases loaded.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
         <div id="adminLicenseChecks" class="view-section"><div class="panel"><h3>License Verifications</h3><div class="placeholder-box">Module Under Construction</div></div></div>
         <div id="adminCPCChecks" class="view-section"><div class="panel"><h3>Driver CPC Expirations</h3><div class="placeholder-box">Module Under Construction</div></div></div>
@@ -666,6 +756,7 @@
 
     let currentUser = null;
     let currentRole = null;
+    let disciplinaryCases = [];
 
     // --- Interaction Logic ---
     
@@ -721,6 +812,8 @@
         if (tabId === 'adminStaffRegister') fetchStaffRegister();
         if (tabId === 'adminViewProfiles') renderStaffCards();
         if (tabId === 'adminQuickContact') renderQuickContactDirectory(true);
+        if (tabId === 'adminStartDisciplinary') { populateDisciplinaryStaffList(); renderDisciplinaryCases(); }
+        if (tabId === 'adminOpenCases' || tabId === 'adminClosedCases') loadDisciplinaryCasesFromSupabase(true);
     }
 
     async function login() {
@@ -741,7 +834,9 @@
             await loadStaffProfilesFromSupabase();
             await loadHolidayEntitlementsFromSupabase();
             await loadHolidayRequestsFromSupabase();
+            await loadDisciplinaryCasesFromSupabase(false);
             populatePlannerStaffFilter();
+            populateDisciplinaryStaffList();
 
             switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
             renderAdminData();
@@ -764,6 +859,11 @@
 
     function normaliseText(value) {
         return (value || '').toString().trim().toLowerCase();
+    }
+
+    function safeTextId(value) {
+        if (value === null || value === undefined || value === '') return null;
+        return value.toString();
     }
 
     function buildProfileDataFromSupabaseRow(row) {
@@ -1453,11 +1553,259 @@
                     <div class="data-row"><span class="data-label">Account No</span><span class="data-val">${p.bankAcc || '***'}</span></div>
                     <div class="data-row"><span class="data-label">Sort Code</span><span class="data-val">${p.bankSort || '***'}</span></div>
                 </div>
+
+                <div class="data-group full-width">
+                    <h4>Disciplinary History</h4>
+                    <div id="profileDisciplinaryHistory">Loading disciplinary history...</div>
+                </div>
             </div>
         `;
 
         document.getElementById('detailPanelContainer').innerHTML = html;
         switchTab('adminProfileDetail');
+        renderProfileDisciplinaryHistory(staff);
+    }
+
+
+    // --- Disciplinary Case Functions ---
+
+    function populateDisciplinaryStaffList() {
+        const list = document.getElementById('disciplinaryStaffList');
+        if (!list) return;
+        list.innerHTML = staffData
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(staff => `<option value="${escapeHtml(staff.name)}"></option>`)
+            .join('');
+    }
+
+    function findStaffByFullName(name) {
+        const target = normaliseText(name);
+        if (!target) return null;
+        return staffData.find(staff => normaliseText(staff.name) === target)
+            || staffData.find(staff => normaliseText(staff.name).includes(target));
+    }
+
+    function handleDisciplinaryNameInput() {
+        const nameInput = document.getElementById('discFullName');
+        const staff = findStaffByFullName(nameInput ? nameInput.value : '');
+        renderDisciplinaryEmployeeSummary(staff);
+    }
+
+    function renderDisciplinaryEmployeeSummary(staff) {
+        const box = document.getElementById('disciplinaryEmployeeSummary');
+        if (!box) return;
+        if (!staff) {
+            box.style.display = 'none';
+            return;
+        }
+
+        const p = staff.profile || {};
+        document.getElementById('discSummaryName').innerText = staff.name || '-';
+        document.getElementById('discSummaryEmpNo').innerText = p.empNo || '-';
+        document.getElementById('discSummaryNI').innerText = p.ni || '-';
+        box.style.display = 'block';
+    }
+
+    function resetDisciplinaryForm() {
+        const form = document.getElementById('disciplinaryForm');
+        if (form) form.reset();
+        const idInput = document.getElementById('disciplinaryCaseId');
+        if (idInput) idInput.value = '';
+        const title = document.getElementById('disciplinaryFormTitle');
+        if (title) title.innerText = 'Start Disciplinary Case';
+        renderDisciplinaryEmployeeSummary(null);
+        populateDisciplinaryStaffList();
+    }
+
+    function buildDisciplinaryPayload(status) {
+        const name = (document.getElementById('discFullName').value || '').trim();
+        const staff = findStaffByFullName(name);
+        const p = staff && staff.profile ? staff.profile : {};
+        const incidentDate = document.getElementById('discDate').value;
+        const incidentTime = document.getElementById('discTime').value;
+        const details = (document.getElementById('discDetails').value || '').trim();
+        const outcome = (document.getElementById('discOutcome').value || '').trim();
+
+        if (!name) throw new Error('Please enter a full name.');
+        if (!staff) throw new Error('Please choose a staff member from the saved staff profile list.');
+        if (!incidentDate) throw new Error('Please enter the disciplinary date.');
+        if (!incidentTime) throw new Error('Please enter the disciplinary time.');
+        if (!details) throw new Error('Please enter the disciplinary details.');
+        if (!outcome) throw new Error('Please enter the disciplinary outcome.');
+
+        return {
+            staff_profile_id: safeTextId(staff.supabaseId),
+            local_staff_id: staff.id || null,
+            employee_number: p.empNo || null,
+            ni_number: p.ni || null,
+            full_name: staff.name,
+            department: staff.dept || null,
+            incident_date: incidentDate,
+            incident_time: incidentTime,
+            disciplinary_details: details,
+            disciplinary_outcome: outcome,
+            status: status,
+            case_action: status === 'closed' ? 'Case Closed' : 'Adjourned',
+            closed_at: status === 'closed' ? new Date().toISOString() : null,
+            created_by: currentUser ? currentUser.name : 'Personnel Manager',
+            updated_by: currentUser ? currentUser.name : 'Personnel Manager'
+        };
+    }
+
+    async function submitDisciplinaryCase(status) {
+        let payload;
+        try {
+            payload = buildDisciplinaryPayload(status);
+        } catch (error) {
+            alert(error.message);
+            return;
+        }
+
+        const existingId = document.getElementById('disciplinaryCaseId').value;
+        const url = existingId
+            ? `${SUPABASE_URL}/rest/v1/disciplinary_cases?id=eq.${encodeURIComponent(existingId)}`
+            : `${SUPABASE_URL}/rest/v1/disciplinary_cases`;
+
+        try {
+            const response = await fetch(url, {
+                method: existingId ? 'PATCH' : 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Supabase disciplinary save failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            if (Array.isArray(rows) && rows[0]) upsertDisciplinaryCase(rows[0]);
+            renderDisciplinaryCases();
+            resetDisciplinaryForm();
+            alert(status === 'closed' ? 'Disciplinary case closed and saved to the employee profile history.' : 'Disciplinary case adjourned and saved to Open Cases.');
+
+            if (status === 'closed') switchTab('adminClosedCases', document.querySelector('#disciplinarySubMenu li:nth-child(3) a'), true);
+            else switchTab('adminOpenCases', document.querySelector('#disciplinarySubMenu li:nth-child(2) a'), true);
+        } catch (error) {
+            alert(`Could not save the disciplinary case: ${error.message}`);
+        }
+    }
+
+    function upsertDisciplinaryCase(row) {
+        const existing = disciplinaryCases.find(c => c.id === row.id);
+        if (existing) Object.assign(existing, row);
+        else disciplinaryCases.push(row);
+    }
+
+    async function loadDisciplinaryCasesFromSupabase(showErrors = false) {
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/disciplinary_cases?select=*&order=incident_date.desc,incident_time.desc`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Supabase disciplinary load failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            disciplinaryCases = Array.isArray(rows) ? rows : [];
+            renderDisciplinaryCases();
+        } catch (error) {
+            console.error('Supabase disciplinary load error:', error);
+            if (showErrors) alert(`Disciplinary cases could not be loaded from Supabase: ${error.message}`);
+        }
+    }
+
+    function renderDisciplinaryCases() {
+        const openBody = document.getElementById('openDisciplinaryBody');
+        const closedBody = document.getElementById('closedDisciplinaryBody');
+        const openCases = disciplinaryCases.filter(c => c.status === 'open');
+        const closedCases = disciplinaryCases.filter(c => c.status === 'closed');
+
+        if (openBody) {
+            openBody.innerHTML = openCases.length ? openCases.map(c => `
+                <tr>
+                    <td><strong>${escapeHtml(c.full_name)}</strong><br><span style="color:var(--text-muted); font-size:0.85em;">${escapeHtml(c.department || '')}</span></td>
+                    <td>${escapeHtml(c.employee_number || '-')}</td>
+                    <td>${escapeHtml(formatDateUK(c.incident_date))}<br><span style="color:var(--text-muted);">${escapeHtml((c.incident_time || '').slice(0,5))}</span></td>
+                    <td><span class="conflict-warning">Adjourned</span><br><span style="color:var(--text-muted); font-size:0.85em;">${escapeHtml(c.disciplinary_outcome || '-')}</span></td>
+                    <td><button class="btn-action" onclick='openDisciplinaryCase(${jsString(c.id)})'>Open / Update</button></td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">No open disciplinary cases.</td></tr>';
+        }
+
+        if (closedBody) {
+            closedBody.innerHTML = closedCases.length ? closedCases.map(c => `
+                <tr>
+                    <td><strong>${escapeHtml(c.full_name)}</strong><br><span style="color:var(--text-muted); font-size:0.85em;">${escapeHtml(c.department || '')}</span></td>
+                    <td>${escapeHtml(c.employee_number || '-')}</td>
+                    <td>${escapeHtml(formatDateUK(c.incident_date))}<br><span style="color:var(--text-muted);">${escapeHtml((c.incident_time || '').slice(0,5))}</span></td>
+                    <td>${escapeHtml(c.disciplinary_outcome || '-')}</td>
+                    <td>${escapeHtml(formatDateUK(c.closed_at || c.updated_at || c.created_at))}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">No closed disciplinary cases.</td></tr>';
+        }
+    }
+
+    function openDisciplinaryCase(caseId) {
+        const c = disciplinaryCases.find(item => String(item.id) === String(caseId));
+        if (!c) return alert('Could not find this disciplinary case.');
+
+        document.getElementById('disciplinaryCaseId').value = c.id;
+        document.getElementById('discFullName').value = c.full_name || '';
+        document.getElementById('discDate').value = c.incident_date || '';
+        document.getElementById('discTime').value = (c.incident_time || '').slice(0, 5);
+        document.getElementById('discDetails').value = c.disciplinary_details || '';
+        document.getElementById('discOutcome').value = c.disciplinary_outcome || '';
+        document.getElementById('disciplinaryFormTitle').innerText = `Update Disciplinary Case: ${c.full_name || ''}`;
+        handleDisciplinaryNameInput();
+        switchTab('adminStartDisciplinary', document.querySelector('#disciplinarySubMenu li:nth-child(1) a'), true);
+    }
+
+    async function renderProfileDisciplinaryHistory(staff) {
+        const container = document.getElementById('profileDisciplinaryHistory');
+        if (!container || !staff) return;
+        container.innerHTML = '<span style="color: var(--text-muted);">Loading disciplinary history...</span>';
+
+        if (!disciplinaryCases || disciplinaryCases.length === 0) {
+            await loadDisciplinaryCasesFromSupabase(false);
+        }
+
+        const p = staff.profile || {};
+        const empNo = normaliseText(p.empNo);
+        const staffName = normaliseText(staff.name);
+        const rows = disciplinaryCases
+            .filter(c => c.status === 'closed')
+            .filter(c => {
+                if (empNo && normaliseText(c.employee_number) === empNo) return true;
+                return staffName && normaliseText(c.full_name) === staffName;
+            })
+            .sort((a, b) => `${b.incident_date || ''} ${b.incident_time || ''}`.localeCompare(`${a.incident_date || ''} ${a.incident_time || ''}`));
+
+        if (rows.length === 0) {
+            container.innerHTML = '<span style="color: var(--text-muted);">No closed disciplinary records found.</span>';
+            return;
+        }
+
+        container.innerHTML = rows.map(c => `
+            <div style="padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                <div class="data-row"><span class="data-label">Date / Time</span><span class="data-val">${escapeHtml(formatDateUK(c.incident_date))} ${escapeHtml((c.incident_time || '').slice(0,5))}</span></div>
+                <div class="data-row"><span class="data-label">Outcome</span><span class="data-val">${escapeHtml(c.disciplinary_outcome || '-')}</span></div>
+                <div style="color: var(--text-muted); font-size: 0.9em; margin-top: 6px;">${escapeHtml(c.disciplinary_details || '')}</div>
+            </div>
+        `).join('');
     }
 
     // --- Dynamic Supabase Fetch Function for Live Register ---
@@ -1468,12 +1816,12 @@
         
         try {
             const now = new Date();
-            const dayOfWeek = now.getDay(); 
-            const lastSunday = new Date(now);
-            lastSunday.setDate(now.getDate() - dayOfWeek);
-            lastSunday.setHours(0, 0, 0, 0);
+            const todayStart = new Date(now);
+            todayStart.setHours(0, 0, 0, 0);
+            const tomorrowStart = new Date(todayStart);
+            tomorrowStart.setDate(todayStart.getDate() + 1);
             
-            const response = await fetch(`${SUPABASE_URL}/rest/v1/fleet_logs?created_at=gte.${lastSunday.toISOString()}&order=created_at.asc&limit=1000`, {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/fleet_logs?created_at=gte.${todayStart.toISOString()}&created_at=lt.${tomorrowStart.toISOString()}&order=created_at.asc&limit=1000`, {
                 headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
             });
             
@@ -1481,7 +1829,7 @@
             const data = await response.json();
             
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-muted);">No clock-in records found for this week.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 30px; color: var(--text-muted);">No clock-in records found for today.</td></tr>';
                 return;
             }
             
