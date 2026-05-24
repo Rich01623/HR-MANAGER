@@ -297,7 +297,7 @@
                 </a>
                 <ul class="sub-menu" id="leaveSubMenu">
                     <li><a href="#" class="nav-sub-item" onclick="switchTab('adminOverview', this, true)">Overview</a></li>
-                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminAuth', this, true)">Authorizations</a></li>
+                    <li><a href="#" class="nav-sub-item" onclick="switchTab('adminAuth', this, true)">Authorisations</a></li>
                     <li><a href="#" class="nav-sub-item" onclick="switchTab('adminStaff', this, true)">Holiday Entitlements</a></li>
                     <li><a href="#" class="nav-sub-item" onclick="switchTab('adminPlanner', this, true)">Yearly Planner</a></li>
                 </ul>
@@ -489,13 +489,13 @@
             </div>
             <div class="panel">
                 <h3>Leave Overview</h3>
-                <p style="color: var(--text-muted); line-height: 1.6;">Review pending 'Authorizations' below. Navigate to 'Holiday Entitlements' to onboard new members or update existing balances. Use 'Yearly Planner' to get a bird's-eye view of all 2026 bookings.</p>
+                <p style="color: var(--text-muted); line-height: 1.6;">Review pending 'Authorisations' below. Navigate to 'Holiday Entitlements' to onboard new members or update existing balances. Use 'Yearly Planner' to get a bird's-eye view of all 2026 bookings.</p>
             </div>
         </div>
 
         <div id="adminAuth" class="view-section">
             <div class="panel">
-                <h3>Pending Authorizations</h3>
+                <h3>Pending Authorisations</h3>
                 <table>
                     <thead>
                         <tr>
@@ -598,7 +598,7 @@
                 <form id="leaveRequestForm" onsubmit="submitLeaveRequest(event)">
                     <label>First Day of Leave:</label><input type="date" id="leaveStart" required>
                     <label>Last Day of Leave:</label><input type="date" id="leaveEnd" required>
-                    <button type="submit" class="btn-action" style="width: 100%; margin-top: 10px;">Submit for Authorization</button>
+                    <button type="submit" class="btn-action" style="width: 100%; margin-top: 10px;">Submit for Authorisation</button>
                 </form>
             </div>
         </div>
@@ -702,7 +702,7 @@
             'adminProfileDetail': 'Personnel File',
             'adminQuickContact': 'Quick Contact Directory',
             'adminOverview': 'Leave Overview',
-            'adminAuth': 'Leave Authorizations',
+            'adminAuth': 'Leave Authorisations',
             'adminStaff': 'Holiday Entitlements',
             'adminPlanner': 'Yearly Leave Planner 2026',
             'adminStartDisciplinary': 'Start Disciplinary Process',
@@ -1761,8 +1761,8 @@
                     <td>${escapeHtml(formatDateUK(req.start))} to ${escapeHtml(formatDateUK(req.end))}<br>${entitlementHtml}</td>
                     <td>${conflictHtml}</td>
                     <td>
-                        <button class="btn-accept" onclick="processRequest(${jsString(req.id)}, 'Approved')">Approve</button>
-                        <button class="btn-reject" onclick="processRequest(${jsString(req.id)}, 'Denied')">Deny</button>
+                        <button class="btn-accept" onclick='processRequest(${jsString(req.id)}, "Approved")'>Approve</button>
+                        <button class="btn-reject" onclick='processRequest(${jsString(req.id)}, "Denied")'>Deny</button>
                     </td>
                 </tr>
             `;
