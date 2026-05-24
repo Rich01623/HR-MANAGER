@@ -230,6 +230,17 @@
         .profile-card { background: var(--panel-slate); border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between;}
         .profile-card:hover { border-color: var(--frost-blue); transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .profile-card-icon { width: 60px; height: 60px; background: var(--bg-main); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; font-size: 1.5rem; color: var(--frost-blue); border: 2px solid var(--border-color); }
+        .profile-photo-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 15px auto; border: 2px solid var(--border-color); background: var(--bg-main); }
+        .profile-photo-img.large { width: 80px; height: 80px; margin: 0; }
+        .profile-photo-img.clickable { cursor: zoom-in; }
+        .photo-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; padding: 30px; }
+        .photo-lightbox.open { display: flex; }
+        .photo-lightbox-content { position: relative; max-width: 90vw; max-height: 90vh; text-align: center; }
+        .photo-lightbox-content img { max-width: 90vw; max-height: 82vh; border-radius: 10px; border: 2px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.6); background: var(--bg-main); }
+        .photo-lightbox-caption { margin-top: 12px; color: var(--text-main); font-weight: 600; }
+        .photo-lightbox-close { position: absolute; top: -18px; right: -18px; width: 38px; height: 38px; border-radius: 50%; padding: 0; background: var(--reject-red); color: #fff; font-size: 1.3rem; line-height: 38px; text-align: center; }
+        .photo-preview-wrap { display: flex; align-items: center; gap: 15px; margin-top: 8px; padding: 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
+        .photo-preview-wrap img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); }
         .profile-card h4 { margin: 0 0 5px 0; color: var(--text-main); font-size: 1.1rem; }
         .profile-card p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
 
@@ -401,6 +412,11 @@
                     
                     <div><label>Mobile Number</label><input type="tel" id="profMob"></div>
                     <div><label>Email Address</label><input type="email" id="profEmail"></div>
+                    <div class="full-width">
+                        <label>Profile Photo</label>
+                        <input type="file" id="profPhoto" accept="image/jpeg,image/png,image/webp" onchange="previewSelectedProfilePhoto()">
+                        <div id="profilePhotoPreview" class="photo-preview-wrap" style="display:none;"></div>
+                    </div>
                     
                     <div style="border-top: 1px solid var(--border-color); margin-top: 10px; padding-top: 15px;" class="full-width"></div>
                     
@@ -696,6 +712,14 @@
     </main>
 </div>
 
+<div id="photoLightbox" class="photo-lightbox" onclick="closePhotoLightbox()">
+    <div class="photo-lightbox-content" onclick="event.stopPropagation()">
+        <button type="button" class="photo-lightbox-close" onclick="closePhotoLightbox()">×</button>
+        <img id="photoLightboxImg" src="" alt="Full size staff profile photo">
+        <div id="photoLightboxCaption" class="photo-lightbox-caption"></div>
+    </div>
+</div>
+
 <script>
     // --- GLOBAL SUPABASE CREDENTIALS ---
     const SUPABASE_URL = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
@@ -886,8 +910,135 @@
             emergNum: row.emergency_contact_number || '',
             ni: row.ni_number || '',
             bankAcc: row.bank_account_number || '',
-            bankSort: row.bank_sort_code || ''
+            bankSort: row.bank_sort_code || '',
+            photoUrl: row.profile_photo_url || ''
         };
+    }
+
+
+    function getProfilePhotoUrl(staff) {
+        return staff && staff.profile && staff.profile.photoUrl ? staff.profile.photoUrl : '';
+    }
+
+    function getStaffInitials(name) {
+        const parts = (name || '').trim().split(' ').filter(Boolean);
+        if (!parts.length) return '?';
+        return parts.map(n => n[0]).join('').substring(0, 3).toUpperCase();
+    }
+
+    function renderProfileAvatar(staff, large = false) {
+        const photoUrl = getProfilePhotoUrl(staff);
+        const safeName = escapeHtml(staff && staff.name ? staff.name : 'Staff member');
+        const fallbackStyle = large ? 'margin:0; width:80px; height:80px; font-size:2rem;' : '';
+        if (photoUrl) {
+            const safePhotoUrl = escapeHtml(photoUrl);
+            return `<img src="${safePhotoUrl}" alt="${safeName} profile photo" title="Click to view full size" class="profile-photo-img clickable${large ? ' large' : ''}" onclick="openPhotoLightbox(event, '${safePhotoUrl}', '${safeName}')" onerror="this.outerHTML='<div class=&quot;profile-card-icon&quot; style=&quot;${fallbackStyle}&quot;>${getStaffInitials(staff.name)}</div>'">`;
+        }
+        return `<div class="profile-card-icon" style="${fallbackStyle}">${getStaffInitials(staff && staff.name)}</div>`;
+    }
+
+    function openPhotoLightbox(event, photoUrl, staffName) {
+        if (event) event.stopPropagation();
+        const lightbox = document.getElementById('photoLightbox');
+        const img = document.getElementById('photoLightboxImg');
+        const caption = document.getElementById('photoLightboxCaption');
+        if (!lightbox || !img || !photoUrl) return;
+
+        img.src = photoUrl;
+        img.alt = `${staffName || 'Staff member'} profile photo`;
+        if (caption) caption.innerText = staffName || '';
+        lightbox.classList.add('open');
+    }
+
+    function closePhotoLightbox() {
+        const lightbox = document.getElementById('photoLightbox');
+        const img = document.getElementById('photoLightboxImg');
+        if (lightbox) lightbox.classList.remove('open');
+        if (img) img.src = '';
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closePhotoLightbox();
+    });
+
+    function setProfilePhotoPreview(photoUrl, labelText = 'Current profile photo') {
+        const preview = document.getElementById('profilePhotoPreview');
+        if (!preview) return;
+
+        if (photoUrl) {
+            preview.style.display = 'flex';
+            preview.innerHTML = `<img src="${escapeHtml(photoUrl)}" alt="Profile photo preview"><div><strong>${escapeHtml(labelText)}</strong><br><span style="color: var(--text-muted); font-size: 0.9em;">Choose a new file to replace this photo.</span></div>`;
+        } else {
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+        }
+    }
+
+    function previewSelectedProfilePhoto() {
+        const input = document.getElementById('profPhoto');
+        if (!input || !input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+            alert('Please choose an image file.');
+            input.value = '';
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Please choose a profile photo smaller than 5MB.');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            setProfilePhotoPreview(event.target.result, 'Selected new profile photo');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function makeSafeStorageName(value) {
+        return (value || 'staff-member')
+            .toString()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'staff-member';
+    }
+
+    async function uploadProfilePhotoIfSelected(employeeNumber, fullName) {
+        const input = document.getElementById('profPhoto');
+        if (!input || !input.files || !input.files[0]) return '';
+
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) throw new Error('The selected profile photo is not an image.');
+        if (file.size > 5 * 1024 * 1024) throw new Error('The selected profile photo must be smaller than 5MB.');
+
+        const folderName = makeSafeStorageName(employeeNumber || fullName);
+        const originalName = file.name || 'profile-photo.jpg';
+        const extensionMatch = originalName.match(/\.[a-zA-Z0-9]+$/);
+        const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.jpg';
+        const filePath = `${folderName}/profile-${Date.now()}${extension}`;
+        const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+
+        const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/staff-profile-photos/${encodedPath}`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': file.type,
+                'x-upsert': 'true'
+            },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            let errData = {};
+            try { errData = await uploadResponse.json(); } catch (_) {}
+            throw new Error(errData.message || `Profile photo upload failed with status ${uploadResponse.status}`);
+        }
+
+        return `${SUPABASE_URL}/storage/v1/object/public/staff-profile-photos/${encodedPath}`;
     }
 
     function findMatchingLocalStaff(profileData) {
@@ -1242,6 +1393,7 @@
     function prepareAddProfile() {
         editingStaffId = null;
         document.getElementById('addProfileForm').reset();
+        setProfilePhotoPreview('', '');
         document.getElementById('profileFormTitle').innerText = "Add New Staff Member to HRIS";
         document.getElementById('profileSubmitBtn').innerText = "Create Profile & Save to Database";
         document.getElementById('pageTitle').innerText = "Add New Staff Profile";
@@ -1279,6 +1431,9 @@
         document.getElementById('profNI').value = p.ni || '';
         document.getElementById('profBankAcc').value = p.bankAcc || '';
         document.getElementById('profBankSort').value = p.bankSort || '';
+        const photoInput = document.getElementById('profPhoto');
+        if (photoInput) photoInput.value = '';
+        setProfilePhotoPreview(p.photoUrl || '', 'Current profile photo');
 
         switchTab('adminAddProfile', document.querySelector('#staffProfilesSubMenu li:nth-child(1) a'), true);
     }
@@ -1295,6 +1450,8 @@
         const sName = document.getElementById('profSName').value.trim();
         const dept = document.getElementById('profDept').value;
         const fullName = `${fName} ${sName}`.trim();
+        const existingStaff = editingStaffId ? staffData.find(s => s.id === editingStaffId) : null;
+        const existingPhotoUrl = existingStaff && existingStaff.profile ? (existingStaff.profile.photoUrl || '') : '';
 
         const dbPayload = {
             first_name: fName,
@@ -1318,6 +1475,16 @@
             bank_sort_code: document.getElementById('profBankSort').value
         };
 
+        try {
+            const uploadedPhotoUrl = await uploadProfilePhotoIfSelected(dbPayload.employee_number, fullName);
+            dbPayload.profile_photo_url = uploadedPhotoUrl || existingPhotoUrl || null;
+        } catch (error) {
+            alert(`Profile Photo Error: ${error.message}`);
+            submitBtn.innerText = originalText;
+            submitBtn.disabled = false;
+            return;
+        }
+
         const profileData = {
             fName: fName, sName: sName,
             dob: dbPayload.dob || '', nat: dbPayload.nationality,
@@ -1325,7 +1492,8 @@
             mob: dbPayload.mobile_number, email: dbPayload.email, empNo: dbPayload.employee_number,
             join: dbPayload.joined_date || '', job: dbPayload.job_title, hours: dbPayload.contracted_hours || '',
             emergName: dbPayload.emergency_contact_name, emergNum: dbPayload.emergency_contact_number,
-            ni: dbPayload.ni_number, bankAcc: dbPayload.bank_account_number, bankSort: dbPayload.bank_sort_code
+            ni: dbPayload.ni_number, bankAcc: dbPayload.bank_account_number, bankSort: dbPayload.bank_sort_code,
+            photoUrl: dbPayload.profile_photo_url || ''
         };
 
         try {
@@ -1487,12 +1655,11 @@
         let filteredStaff = staffData.filter(s => s.name.toLowerCase().includes(searchTerm));
         
         container.innerHTML = filteredStaff.sort((a,b) => a.name.localeCompare(b.name)).map(s => {
-            const initials = s.name.split(' ').map(n => n[0]).join('');
             const jobTitle = s.profile && s.profile.job ? s.profile.job : s.dept;
             return `
                 <div class="profile-card" onclick="viewStaffDetail(${s.id})">
                     <div style="flex-grow: 1;">
-                        <div class="profile-card-icon">${initials}</div>
+                        ${renderProfileAvatar(s)}
                         <h4>${s.name}</h4>
                         <p>${jobTitle}</p>
                     </div>
@@ -1513,11 +1680,10 @@
         if(!staff) return;
 
         const p = staff.profile || {};
-        const initials = staff.name.split(' ').map(n => n[0]).join('');
 
         const html = `
             <div class="profile-detail-header">
-                <div class="profile-card-icon" style="margin:0; width:80px; height:80px; font-size:2rem;">${initials}</div>
+                ${renderProfileAvatar(staff, true)}
                 <div>
                     <h2 style="margin: 0 0 5px 0; color: var(--frost-blue);">${staff.name}</h2>
                     <p style="margin: 0; color: var(--text-muted); font-size: 1.1em;">${p.job || staff.dept} | ID: ${p.empNo || 'N/A'}</p>
@@ -1529,6 +1695,7 @@
                     <h4>Personal Information</h4>
                     <div class="data-row"><span class="data-label">Date of Birth</span><span class="data-val">${formatDateUK(p.dob)}</span></div>
                     <div class="data-row"><span class="data-label">Nationality</span><span class="data-val">${p.nat || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Profile Photo</span><span class="data-val">${p.photoUrl ? 'Saved' : '-'}</span></div>
                     <div class="data-row"><span class="data-label">Address</span><span class="data-val">${[p.add1, p.add2, p.add3, p.post].filter(Boolean).join(', ') || '-'}</span></div>
                 </div>
 
@@ -1914,12 +2081,53 @@
         return formatStatusForApp(req.status) === 'Approved';
     }
 
+    function parseDateOnly(dateValue) {
+        if (!dateValue) return null;
+        const datePart = dateValue.toString().split('T')[0];
+        const date = new Date(`${datePart}T00:00:00`);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function toDateStringLocal(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    function isWeekendDateString(dateValue) {
+        const date = parseDateOnly(dateValue);
+        if (!date) return false;
+        const day = date.getDay();
+        return day === 0 || day === 6;
+    }
+
     function calculateRequestedDays(startDate, endDate) {
         if (!startDate || !endDate) return 0;
-        const start = new Date(`${startDate}T00:00:00`);
-        const end = new Date(`${endDate}T00:00:00`);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
-        return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        const start = parseDateOnly(startDate);
+        const end = parseDateOnly(endDate);
+        if (!start || !end || end < start) return 0;
+
+        let total = 0;
+        const cursor = new Date(start);
+        while (cursor <= end) {
+            const day = cursor.getDay();
+            if (day !== 0 && day !== 6) total += 1;
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return total;
+    }
+
+    function holidayRequestsOverlapOnWorkingDay(a, b) {
+        if (!a || !b || !a.start || !a.end || !b.start || !b.end) return false;
+        const overlapStart = parseDateOnly(a.start > b.start ? a.start : b.start);
+        const overlapEnd = parseDateOnly(a.end < b.end ? a.end : b.end);
+        if (!overlapStart || !overlapEnd || overlapEnd < overlapStart) return false;
+
+        const cursor = new Date(overlapStart);
+        while (cursor <= overlapEnd) {
+            const day = cursor.getDay();
+            if (day !== 0 && day !== 6) return true;
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return false;
     }
 
     function formatDateUK(dateValue) {
@@ -1970,7 +2178,7 @@
             start: row.start_date,
             end: row.end_date,
             status: appStatus,
-            daysRequested: Number(row.days_requested || calculateRequestedDays(row.start_date, row.end_date)),
+            daysRequested: calculateRequestedDays(row.start_date, row.end_date),
             managerResponse: row.manager_response || '',
             denialReason: row.denial_reason || '',
             requestedBy: row.requested_by || '',
@@ -2025,7 +2233,8 @@
             manager_response: isApproved ? 'Approved by Personnel Manager' : `Denied: ${denialReason}`,
             denial_reason: isApproved ? null : denialReason,
             reviewed_by: currentUser ? currentUser.name : 'Personnel Manager',
-            reviewed_at: new Date().toISOString()
+            reviewed_at: new Date().toISOString(),
+            days_requested: calculateRequestedDays(req.start, req.end)
         };
 
         const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?id=eq.${encodeURIComponent(req.supabaseRequestId)}`, {
@@ -2193,7 +2402,7 @@
                     classes.push('day-bank-holiday'); tooltip.push('UK Bank Holiday');
                 }
                 
-                let bookedStaff = requests.filter(r => isApprovedHolidayRequest(r) && r.start <= dateString && r.end >= dateString);
+                let bookedStaff = isWeekendDateString(dateString) ? [] : requests.filter(r => isApprovedHolidayRequest(r) && r.start <= dateString && r.end >= dateString);
                 if (staffFilterId) bookedStaff = bookedStaff.filter(s => s.staffId === staffFilterId);
 
                 if (bookedStaff.length === 1 && !classes.includes('day-bank-holiday')) {
@@ -2217,7 +2426,7 @@
             if (!isApprovedHolidayRequest(r)) return false;
             if (r.id === newReq.id || r.supabaseRequestId === newReq.supabaseRequestId) return false;
             if ((r.dept || '') !== (newReq.dept || '')) return false;
-            return r.start <= newReq.end && r.end >= newReq.start;
+            return holidayRequestsOverlapOnWorkingDay(r, newReq);
         });
     }
 
