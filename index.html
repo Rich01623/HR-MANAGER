@@ -277,15 +277,17 @@
 <body>
 
 <div id="loginWrapper">
-    <div class="panel" style="width: 100%; max-width: 400px; text-align: center;">
-        <h2 style="color: var(--rs-orange); margin-bottom: 30px;">Frost HR Login</h2>
-        <div style="text-align: left;">
-            <label>Select Profile:</label>
-            <select id="userSelect">
-                <option value="admin">Personnel Manager (Admin)</option>
-            </select>
-            <button class="btn-action" onclick="login()" style="width: 100%; margin-top: 10px;">Secure Login</button>
-        </div>
+    <div class="panel" style="width: 100%; max-width: 420px; text-align: center;">
+        <h2 style="color: var(--rs-orange); margin-bottom: 10px;">Frost HR Secure Login</h2>
+        <p style="color: var(--text-muted); margin-bottom: 25px; line-height: 1.5;">Only authorised personnel accounts can access this HR system.</p>
+        <form id="loginForm" onsubmit="login(event)" style="text-align: left;">
+            <label>Email Address</label>
+            <input type="email" id="loginEmail" autocomplete="username" placeholder="name@example.com" required>
+            <label>Password</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Enter your password" required>
+            <button class="btn-action" id="loginBtn" type="submit" style="width: 100%; margin-top: 10px;">Secure Login</button>
+            <div id="loginError" style="display:none; color: var(--reject-red); margin-top: 15px; line-height: 1.4; font-weight: 600;"></div>
+        </form>
     </div>
 </div>
 
@@ -760,6 +762,171 @@
     const SUPABASE_URL = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idWR3bnd4dWNsdXdnYmtnYmZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMDQwMjYsImV4cCI6MjA5MDc4MDAyNn0.xFv-FiQ894vdfJuQYWQyF4WzQXmlnmnKvz_c8nuzl5Q';
 
+
+    // --- SECURE AUTHENTICATION ---
+    // Passwords are NOT stored in this HTML file.
+    // Create the two accounts in Supabase Authentication > Users.
+    // This HR app only allows these two email addresses to enter.
+    const AUTHORISED_EMAILS = [
+        'robinson01623@gmail.com',
+        'chris@frosttransportsolutions.co.uk'
+    ];
+
+    const AUTH_STORAGE_KEY = 'frost_hr_supabase_session_v1';
+    let supabaseSession = null;
+    let authorisedHrUser = null;
+
+    function showLoginError(message) {
+        const box = document.getElementById('loginError');
+        if (!box) return;
+        box.innerText = message;
+        box.style.display = message ? 'block' : 'none';
+    }
+
+    function setLoginBusy(isBusy) {
+        const btn = document.getElementById('loginBtn');
+        if (!btn) return;
+        btn.disabled = isBusy;
+        btn.innerText = isBusy ? 'Checking access...' : 'Secure Login';
+    }
+
+    function saveSession(session) {
+        supabaseSession = session;
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    }
+
+    function clearSession() {
+        supabaseSession = null;
+        authorisedHrUser = null;
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+
+    function loadSavedSession() {
+        try {
+            const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+            if (!raw) return null;
+            const session = JSON.parse(raw);
+            if (!session || !session.access_token || !session.refresh_token) return null;
+            supabaseSession = session;
+            return session;
+        } catch (_) {
+            clearSession();
+            return null;
+        }
+    }
+
+    function getAccessToken() {
+        return supabaseSession && supabaseSession.access_token ? supabaseSession.access_token : SUPABASE_KEY;
+    }
+
+    function getSupabaseHeaders(extraHeaders = {}) {
+        return {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${getAccessToken()}`,
+            ...extraHeaders
+        };
+    }
+
+    async function refreshSupabaseSessionIfNeeded() {
+        if (!supabaseSession || !supabaseSession.refresh_token) return false;
+        if (supabaseSession.expires_at && Date.now() < supabaseSession.expires_at) return true;
+
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refresh_token: supabaseSession.refresh_token })
+        });
+
+        if (!response.ok) {
+            clearSession();
+            return false;
+        }
+
+        const refreshed = await response.json();
+        refreshed.expires_at = Date.now() + ((refreshed.expires_in || 3600) * 1000) - 60000;
+        saveSession(refreshed);
+        return true;
+    }
+
+    async function getCurrentSupabaseUser() {
+        const valid = await refreshSupabaseSessionIfNeeded();
+        if (!valid) return null;
+
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+            headers: getSupabaseHeaders()
+        });
+
+        if (!response.ok) {
+            clearSession();
+            return null;
+        }
+
+        return await response.json();
+    }
+
+    async function verifyHrAuthorisedUser(user) {
+        if (!user || !user.email) return null;
+
+        const email = String(user.email).trim().toLowerCase();
+        if (!AUTHORISED_EMAILS.includes(email)) return null;
+
+        const record = {
+            email: email,
+            full_name: email === 'chris@frosttransportsolutions.co.uk' ? 'Chris Frost' : 'Richard Robinson',
+            role: 'personnel_manager',
+            is_active: true
+        };
+
+        authorisedHrUser = record;
+        return record;
+    }
+
+    async function startAuthorisedApp(user, authorisedRecord) {
+        currentRole = 'admin';
+        currentUser = { name: authorisedRecord.full_name || user.email || 'Personnel Manager', dept: 'Office', email: user.email };
+
+        document.getElementById('loginWrapper').style.display = 'none';
+        document.getElementById('appWrapper').style.display = 'flex';
+        document.getElementById('sidebarRole').innerText = 'AUTHORISED HR USER';
+        document.getElementById('adminNav').style.display = 'block';
+        document.getElementById('staffNav').style.display = 'none';
+        document.getElementById('currentUserDisplay').innerText = currentUser.name;
+
+        await loadStaffProfilesFromSupabase();
+        await loadHolidayEntitlementsFromSupabase();
+        await loadHolidayRequestsFromSupabase();
+        await loadDisciplinaryCasesFromSupabase(false);
+        populatePlannerStaffFilter();
+        populateDisciplinaryStaffList();
+
+        restoreLastTab();
+        renderAdminData();
+    }
+
+    async function initialiseAuth() {
+        document.getElementById('appWrapper').style.display = 'none';
+        loadSavedSession();
+        if (!supabaseSession) return;
+
+        try {
+            const user = await getCurrentSupabaseUser();
+            if (!user) return;
+            const authorisedRecord = await verifyHrAuthorisedUser(user);
+            if (!authorisedRecord) {
+                await logout(false);
+                showLoginError('This account is not authorised to access the Frost HR system.');
+                return;
+            }
+            await startAuthorisedApp(user, authorisedRecord);
+        } catch (error) {
+            console.error('Auth restore failed:', error);
+            clearSession();
+        }
+    }
+
     // --- Frost Transport Roster Database ---
     let staffData = [
         { id: 1, name: 'Chris Frost', dept: 'Office', entitlement: 28, used: 0, profile: { fName: 'Chris', sName: 'Frost', job: 'Director', empNo: 'FTS-001', mob: '07700 900001' } },
@@ -832,7 +999,53 @@
         }
     }
 
-    function switchTab(tabId, element, isSubItem = false) {
+    function getSavedHrTab() {
+        return localStorage.getItem('frost_hr_last_tab') || 'adminStaffRegister';
+    }
+
+    function saveHrTab(tabId) {
+        const nonRestorableTabs = ['adminProfileDetail'];
+        if (!tabId || nonRestorableTabs.includes(tabId)) return;
+        localStorage.setItem('frost_hr_last_tab', tabId);
+    }
+
+    function getNavForTab(tabId) {
+        const map = {
+            adminStaffRegister: { selector: "#adminNav .nav-item[onclick*=\"adminStaffRegister\"]", isSubItem: false },
+            adminAddProfile: { selector: "#staffProfilesSubMenu .nav-sub-item[onclick*=\"adminAddProfile\"]", isSubItem: true, menuId: 'staffProfilesSubMenu' },
+            adminViewProfiles: { selector: "#staffProfilesSubMenu .nav-sub-item[onclick*=\"adminViewProfiles\"]", isSubItem: true, menuId: 'staffProfilesSubMenu' },
+            adminQuickContact: { selector: "#adminNav .nav-item[onclick*=\"adminQuickContact\"]", isSubItem: false },
+            adminOverview: { selector: "#leaveSubMenu .nav-sub-item[onclick*=\"adminOverview\"]", isSubItem: true, menuId: 'leaveSubMenu' },
+            adminAuth: { selector: "#leaveSubMenu .nav-sub-item[onclick*=\"adminAuth\"]", isSubItem: true, menuId: 'leaveSubMenu' },
+            adminStaff: { selector: "#leaveSubMenu .nav-sub-item[onclick*=\"adminStaff\"]", isSubItem: true, menuId: 'leaveSubMenu' },
+            adminPlanner: { selector: "#leaveSubMenu .nav-sub-item[onclick*=\"adminPlanner\"]", isSubItem: true, menuId: 'leaveSubMenu' },
+            adminStartDisciplinary: { selector: "#disciplinarySubMenu .nav-sub-item[onclick*=\"adminStartDisciplinary\"]", isSubItem: true, menuId: 'disciplinarySubMenu' },
+            adminOpenCases: { selector: "#disciplinarySubMenu .nav-sub-item[onclick*=\"adminOpenCases\"]", isSubItem: true, menuId: 'disciplinarySubMenu' },
+            adminClosedCases: { selector: "#disciplinarySubMenu .nav-sub-item[onclick*=\"adminClosedCases\"]", isSubItem: true, menuId: 'disciplinarySubMenu' },
+            adminLicenseChecks: { selector: "#licenseSubMenu .nav-sub-item[onclick*=\"adminLicenseChecks\"]", isSubItem: true, menuId: 'licenseSubMenu' },
+            adminCPCChecks: { selector: "#licenseSubMenu .nav-sub-item[onclick*=\"adminCPCChecks\"]", isSubItem: true, menuId: 'licenseSubMenu' },
+            adminPhones: { selector: "#equipmentSubMenu .nav-sub-item[onclick*=\"adminPhones\"]", isSubItem: true, menuId: 'equipmentSubMenu' },
+            adminLaptops: { selector: "#equipmentSubMenu .nav-sub-item[onclick*=\"adminLaptops\"]", isSubItem: true, menuId: 'equipmentSubMenu' }
+        };
+        const item = map[tabId];
+        if (!item) return { element: document.querySelector('#adminNav .nav-item'), isSubItem: false };
+        if (item.menuId) {
+            const menu = document.getElementById(item.menuId);
+            const icon = document.getElementById(item.menuId + 'Icon');
+            if (menu) menu.classList.add('open');
+            if (icon) icon.innerText = '▲';
+        }
+        return { element: document.querySelector(item.selector), isSubItem: item.isSubItem };
+    }
+
+    function restoreLastTab() {
+        const savedTab = getSavedHrTab();
+        const targetTab = document.getElementById(savedTab) ? savedTab : 'adminStaffRegister';
+        const nav = getNavForTab(targetTab);
+        switchTab(targetTab, nav.element, nav.isSubItem, false);
+    }
+
+    function switchTab(tabId, element, isSubItem = false, rememberTab = true) {
         document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active-section'));
         document.getElementById(tabId).classList.add('active-section');
         
@@ -844,6 +1057,8 @@
                 element.closest('li').parentElement.previousElementSibling.classList.add('active');
             }
         }
+
+        if (rememberTab) saveHrTab(tabId);
 
         const titles = {
             'adminStaffRegister': 'Live Clock-In Register',
@@ -875,35 +1090,59 @@
         if (tabId === 'adminOpenCases' || tabId === 'adminClosedCases') loadDisciplinaryCasesFromSupabase(true);
     }
 
-    async function login() {
-        const userVal = document.getElementById('userSelect').value;
-        
-        document.getElementById('loginWrapper').style.display = 'none';
-        document.getElementById('appWrapper').style.display = 'flex';
-        
-        if(userVal === 'admin') {
-            currentRole = 'admin';
-            currentUser = { name: 'Personnel Manager', dept: 'Office' };
-            document.getElementById('sidebarRole').innerText = 'ADMINISTRATOR';
-            document.getElementById('adminNav').style.display = 'block';
-            document.getElementById('staffNav').style.display = 'none';
-            document.getElementById('currentUserDisplay').innerText = 'Personnel Dept';
+    async function login(event) {
+        if (event) event.preventDefault();
+        showLoginError('');
+        setLoginBusy(true);
 
-            // Load saved staff profile records and holiday entitlements from Supabase before drawing cards, tables and planner filters.
-            await loadStaffProfilesFromSupabase();
-            await loadHolidayEntitlementsFromSupabase();
-            await loadHolidayRequestsFromSupabase();
-            await loadDisciplinaryCasesFromSupabase(false);
-            populatePlannerStaffFilter();
-            populateDisciplinaryStaffList();
+        const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+        const password = document.getElementById('loginPassword').value;
 
-            switchTab('adminStaffRegister', document.querySelector('#adminNav .nav-item'));
-            renderAdminData();
+        try {
+            const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (!response.ok) {
+                throw new Error('The email or password is incorrect.');
+            }
+
+            const session = await response.json();
+            session.expires_at = Date.now() + ((session.expires_in || 3600) * 1000) - 60000;
+            saveSession(session);
+
+            const user = session.user || await getCurrentSupabaseUser();
+            const authorisedRecord = await verifyHrAuthorisedUser(user);
+
+            if (!authorisedRecord) {
+                await logout(false);
+                throw new Error('This account is not authorised to access the Frost HR system.');
+            }
+
+            await startAuthorisedApp(user, authorisedRecord);
+        } catch (error) {
+            showLoginError(error.message || 'Could not sign in.');
+        } finally {
+            setLoginBusy(false);
         }
     }
 
-    function logout() {
-        location.reload(); 
+    async function logout(reloadPage = true) {
+        try {
+            if (supabaseSession && supabaseSession.access_token) {
+                await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+                    method: 'POST',
+                    headers: getSupabaseHeaders()
+                });
+            }
+        } catch (_) {}
+        clearSession();
+        if (reloadPage) location.reload();
     }
 
     function populatePlannerStaffFilter() {
@@ -1064,8 +1303,7 @@
         const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/staff-profile-photos/${encodedPath}`, {
             method: 'POST',
             headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                ...getSupabaseHeaders(),
                 'Content-Type': file.type,
                 'x-upsert': 'true'
             },
@@ -1140,8 +1378,7 @@
         const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/staff-profile-photos/${encodedPath}`, {
             method: 'POST',
             headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                ...getSupabaseHeaders(),
                 'Content-Type': file.type,
                 'x-upsert': 'true'
             },
@@ -1238,8 +1475,7 @@
     async function getQuickContactRowsFromSupabase() {
         const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?select=first_name,surname,mobile_number&order=surname.asc`, {
             headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`
+                ...getSupabaseHeaders()
             }
         });
 
@@ -1306,8 +1542,7 @@
         try {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile?select=*&order=surname.asc`, {
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                    ...getSupabaseHeaders()
                 }
             });
 
@@ -1402,8 +1637,7 @@
         try {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements?select=*&order=full_name.asc`, {
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                    ...getSupabaseHeaders()
                 }
             });
 
@@ -1481,8 +1715,7 @@
             const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements?${filter}`, {
                 method: 'PATCH',
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    ...getSupabaseHeaders(),
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 },
@@ -1504,8 +1737,7 @@
             const createResponse = await fetch(`${SUPABASE_URL}/rest/v1/holiday_entitlements`, {
                 method: 'POST',
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    ...getSupabaseHeaders(),
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 },
@@ -1776,8 +2008,7 @@
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/staff_profile`, {
                     method: 'POST',
                     headers: {
-                        'apikey': SUPABASE_KEY,
-                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        ...getSupabaseHeaders(),
                         'Content-Type': 'application/json',
                         'Prefer': 'return=representation'
                     },
@@ -2014,8 +2245,7 @@
             const response = await fetch(url, {
                 method: existingId ? 'PATCH' : 'POST',
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`,
+                    ...getSupabaseHeaders(),
                     'Content-Type': 'application/json',
                     'Prefer': 'return=representation'
                 },
@@ -2051,8 +2281,7 @@
         try {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/disciplinary_cases?select=*&order=incident_date.desc,incident_time.desc`, {
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                    ...getSupabaseHeaders()
                 }
             });
 
@@ -2165,7 +2394,7 @@
             tomorrowStart.setDate(todayStart.getDate() + 1);
             
             const response = await fetch(`${SUPABASE_URL}/rest/v1/fleet_logs?created_at=gte.${todayStart.toISOString()}&created_at=lt.${tomorrowStart.toISOString()}&order=created_at.asc&limit=1000`, {
-                headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                headers: getSupabaseHeaders()
             });
             
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -2377,8 +2606,7 @@
         try {
             const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?select=*&order=created_at.desc`, {
                 headers: {
-                    'apikey': SUPABASE_KEY,
-                    'Authorization': `Bearer ${SUPABASE_KEY}`
+                    ...getSupabaseHeaders()
                 }
             });
 
@@ -2416,8 +2644,7 @@
         const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?id=eq.${encodeURIComponent(req.supabaseRequestId)}`, {
             method: 'PATCH',
             headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                ...getSupabaseHeaders(),
                 'Content-Type': 'application/json',
                 'Prefer': 'return=representation'
             },
@@ -2457,6 +2684,7 @@
                     <td style="color: ${statusColor}; font-weight:bold;">${rem}</td>
                     <td>
                         <button style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); padding: 5px 10px; margin-right: 5px;" onclick="quickEditEntitlements(${staff.id})">Edit Entitlement</button>
+                        <button style="background: transparent; border: 1px solid var(--rs-orange); color: var(--rs-orange); padding: 5px 10px; margin-right: 5px;" onclick="holidayOverride(${staff.id})">Holiday Override</button>
                         <button style="background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red); padding: 5px 10px;" onclick="removeStaff(${staff.id})">Remove</button>
                     </td>
                 </tr>
@@ -2542,6 +2770,103 @@
             staff.used = oldUsed;
             renderAdminData();
             alert(`Holiday entitlement update failed: ${error.message}`);
+        }
+    }
+
+
+    async function holidayOverride(id) {
+        const staff = staffData.find(s => s.id === id);
+        if (!staff) return alert('Could not find this staff member.');
+
+        const startDate = prompt(`Holiday Override for ${staff.name}
+
+Enter the first day of holiday in YYYY-MM-DD format:`);
+        if (startDate === null) return;
+
+        const endDate = prompt(`Holiday Override for ${staff.name}
+
+Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
+        if (endDate === null) return;
+
+        const cleanStart = startDate.trim();
+        const cleanEnd = endDate.trim();
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanStart) || !/^\d{4}-\d{2}-\d{2}$/.test(cleanEnd)) {
+            return alert('Please enter dates in YYYY-MM-DD format, for example 2026-06-15.');
+        }
+
+        const parsedStart = parseDateOnly(cleanStart);
+        const parsedEnd = parseDateOnly(cleanEnd);
+        if (!parsedStart || !parsedEnd || parsedEnd < parsedStart) {
+            return alert('Please enter a valid date range. The end date cannot be before the start date.');
+        }
+
+        const days = calculateRequestedDays(cleanStart, cleanEnd);
+        if (days <= 0) {
+            return alert('This date range does not contain any Monday-Friday working days, so no holiday days would be added.');
+        }
+
+        const reason = prompt('Optional note/reason for this holiday override:', 'Manual holiday override added by Personnel Manager');
+        if (reason === null) return;
+
+        const p = staff.profile || {};
+        const firstName = p.fName || staff.name.split(' ')[0] || '';
+        const surname = p.sName || staff.name.split(' ').slice(1).join(' ') || '';
+        const oldUsed = Number(staff.used || 0);
+
+        const confirmOverride = confirm(
+            `Add approved holiday override for ${staff.name}?\n\n` +
+            `Dates: ${formatDateUK(cleanStart)} to ${formatDateUK(cleanEnd)}\n` +
+            `Working days to add: ${days}\n\n` +
+            `This will update the yearly planner and increase used holiday from ${oldUsed} to ${oldUsed + days}.`
+        );
+        if (!confirmOverride) return;
+
+        const payload = {
+            employee_number: p.empNo || null,
+            first_name: firstName,
+            surname: surname,
+            department: staff.dept || 'Drivers',
+            start_date: cleanStart,
+            end_date: cleanEnd,
+            days_requested: days,
+            status: 'approved',
+            manager_response: reason.trim() || 'Manual holiday override added by Personnel Manager',
+            requested_by: 'Personnel Manager Holiday Override',
+            reviewed_by: currentUser ? currentUser.name : 'Personnel Manager',
+            reviewed_at: new Date().toISOString()
+        };
+
+        try {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests`, {
+                method: 'POST',
+                headers: {
+                    ...getSupabaseHeaders(),
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errData = {};
+                try { errData = await response.json(); } catch (_) {}
+                throw new Error(errData.message || `Holiday override save failed with status ${response.status}`);
+            }
+
+            const rows = await response.json();
+            if (Array.isArray(rows) && rows[0]) upsertRequestIntoLocalState(rows[0]);
+
+            staff.used = oldUsed + days;
+            await saveHolidayEntitlementToSupabase(staff);
+
+            renderAdminData();
+            renderPlanner();
+            alert(`${staff.name}'s holiday override has been added and the yearly planner has been updated.`);
+        } catch (error) {
+            staff.used = oldUsed;
+            renderAdminData();
+            alert(`Could not save the holiday override: ${error.message}`);
         }
     }
 
@@ -2675,6 +3000,8 @@
             alert(`Could not save the new holiday baseline to Supabase: ${error.message}`);
         }
     }
+
+    window.addEventListener('DOMContentLoaded', initialiseAuth);
 </script>
 </body>
 </html>
