@@ -241,6 +241,16 @@
         .photo-lightbox-close { position: absolute; top: -18px; right: -18px; width: 38px; height: 38px; border-radius: 50%; padding: 0; background: var(--reject-red); color: #fff; font-size: 1.3rem; line-height: 38px; text-align: center; }
         .photo-preview-wrap { display: flex; align-items: center; gap: 15px; margin-top: 8px; padding: 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
         .photo-preview-wrap img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); }
+        .document-preview-wrap { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
+        .document-preview-wrap img { width: 90px; height: 60px; border-radius: 6px; object-fit: cover; border: 2px solid var(--border-color); cursor: zoom-in; background: var(--panel-slate); }
+        .document-thumb-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; justify-content: center; }
+        .document-thumb { width: 72px; min-height: 78px; border: 1px solid var(--border-color); background: var(--bg-main); border-radius: 8px; padding: 5px; text-align: center; cursor: zoom-in; }
+        .document-thumb img { width: 100%; height: 46px; object-fit: cover; border-radius: 5px; display: block; margin-bottom: 4px; }
+        .document-thumb span { display: block; color: var(--text-muted); font-size: 0.68rem; line-height: 1.1; }
+        .profile-document-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+        .profile-document-tile { background: var(--panel-slate); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; text-align: center; }
+        .profile-document-tile img { width: 100%; max-width: 180px; height: 105px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: zoom-in; background: var(--bg-main); }
+        .profile-document-tile div { margin-top: 6px; color: var(--text-muted); font-size: 0.85rem; }
         .profile-card h4 { margin: 0 0 5px 0; color: var(--text-main); font-size: 1.1rem; }
         .profile-card p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
 
@@ -440,6 +450,31 @@
                     <div style="border-top: 1px solid var(--border-color); margin-top: 10px; padding-top: 15px;" class="full-width"></div>
 
                     <div class="full-width"><label>National Insurance Number</label><input type="text" id="profNI" style="text-transform: uppercase;"></div>
+
+                    <div>
+                        <label>Drivers Licence Number</label>
+                        <input type="text" id="profLicenceNumber" style="text-transform: uppercase;">
+                    </div>
+                    <div>
+                        <label>Driving Licence Front Photo</label>
+                        <input type="file" id="profLicenceFrontPhoto" accept="image/jpeg,image/png,image/webp" onchange="previewSelectedDocumentPhoto('profLicenceFrontPhoto', 'licenceFrontPreview', 'Selected driving licence front')">
+                        <div id="licenceFrontPreview" class="document-preview-wrap" style="display:none;"></div>
+                    </div>
+                    <div>
+                        <label>Driving Licence Back Photo</label>
+                        <input type="file" id="profLicenceBackPhoto" accept="image/jpeg,image/png,image/webp" onchange="previewSelectedDocumentPhoto('profLicenceBackPhoto', 'licenceBackPreview', 'Selected driving licence back')">
+                        <div id="licenceBackPreview" class="document-preview-wrap" style="display:none;"></div>
+                    </div>
+                    <div>
+                        <label>Drivers Card Number</label>
+                        <input type="text" id="profTachoCardNumber" style="text-transform: uppercase;">
+                    </div>
+                    <div class="full-width">
+                        <label>Drivers Card Front Photo</label>
+                        <input type="file" id="profTachoCardPhoto" accept="image/jpeg,image/png,image/webp" onchange="previewSelectedDocumentPhoto('profTachoCardPhoto', 'tachoCardPreview', 'Selected drivers card front')">
+                        <div id="tachoCardPreview" class="document-preview-wrap" style="display:none;"></div>
+                    </div>
+
                     <div><label>Bank Account Number</label><input type="text" id="profBankAcc" maxlength="8"></div>
                     <div><label>Bank Sort Code</label><input type="text" id="profBankSort" placeholder="XX-XX-XX"></div>
 
@@ -909,6 +944,11 @@
             emergName: row.emergency_contact_name || '',
             emergNum: row.emergency_contact_number || '',
             ni: row.ni_number || '',
+            licenceNumber: row.licence_number || '',
+            tachoCardNumber: row.tacho_card_number || '',
+            licenceFrontUrl: row.driving_licence_front_url || '',
+            licenceBackUrl: row.driving_licence_back_url || '',
+            tachoCardPhotoUrl: row.tacho_card_front_url || '',
             bankAcc: row.bank_account_number || '',
             bankSort: row.bank_sort_code || '',
             photoUrl: row.profile_photo_url || ''
@@ -1039,6 +1079,107 @@
         }
 
         return `${SUPABASE_URL}/storage/v1/object/public/staff-profile-photos/${encodedPath}`;
+    }
+
+
+    function setDocumentPhotoPreview(previewId, photoUrl, labelText = 'Current document photo') {
+        const preview = document.getElementById(previewId);
+        if (!preview) return;
+
+        if (photoUrl) {
+            const safeUrl = escapeHtml(photoUrl);
+            const safeLabel = escapeHtml(labelText);
+            preview.style.display = 'flex';
+            preview.innerHTML = `<img src="${safeUrl}" alt="${safeLabel}" onclick="openPhotoLightbox(event, '${safeUrl}', '${safeLabel}')"><div><strong>${safeLabel}</strong><br><span style="color: var(--text-muted); font-size: 0.9em;">Choose a new file to replace this image.</span></div>`;
+        } else {
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+        }
+    }
+
+    function previewSelectedDocumentPhoto(inputId, previewId, labelText) {
+        const input = document.getElementById(inputId);
+        if (!input || !input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) {
+            alert('Please choose an image file.');
+            input.value = '';
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Please choose an image smaller than 5MB.');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            setDocumentPhotoPreview(previewId, event.target.result, labelText);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function uploadDocumentPhotoIfSelected(inputId, employeeNumber, fullName, documentPrefix) {
+        const input = document.getElementById(inputId);
+        if (!input || !input.files || !input.files[0]) return '';
+
+        const file = input.files[0];
+        if (!file.type.startsWith('image/')) throw new Error(`${documentPrefix} is not an image.`);
+        if (file.size > 5 * 1024 * 1024) throw new Error(`${documentPrefix} must be smaller than 5MB.`);
+
+        const folderName = makeSafeStorageName(employeeNumber || fullName);
+        const originalName = file.name || `${documentPrefix}.jpg`;
+        const extensionMatch = originalName.match(/\.[a-zA-Z0-9]+$/);
+        const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.jpg';
+        const safePrefix = makeSafeStorageName(documentPrefix);
+        const filePath = `${folderName}/${safePrefix}-${Date.now()}${extension}`;
+        const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+
+        const uploadResponse = await fetch(`${SUPABASE_URL}/storage/v1/object/staff-profile-photos/${encodedPath}`, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': file.type,
+                'x-upsert': 'true'
+            },
+            body: file
+        });
+
+        if (!uploadResponse.ok) {
+            let errData = {};
+            try { errData = await uploadResponse.json(); } catch (_) {}
+            throw new Error(errData.message || `${documentPrefix} upload failed with status ${uploadResponse.status}`);
+        }
+
+        return `${SUPABASE_URL}/storage/v1/object/public/staff-profile-photos/${encodedPath}`;
+    }
+
+    function renderStaffDocumentThumbnails(staff, compact = false) {
+        const p = staff && staff.profile ? staff.profile : {};
+        const docs = [
+            { label: 'Licence Front', url: p.licenceFrontUrl },
+            { label: 'Licence Back', url: p.licenceBackUrl },
+            { label: 'Driver Card', url: p.tachoCardPhotoUrl }
+        ].filter(doc => doc.url);
+
+        if (!docs.length) return compact ? '' : '<span style="color: var(--text-muted);">No licence or drivers card images uploaded.</span>';
+
+        if (compact) {
+            return `<div class="document-thumb-grid">${docs.map(doc => {
+                const safeUrl = escapeHtml(doc.url);
+                const safeLabel = escapeHtml(doc.label);
+                return `<div class="document-thumb" onclick="openPhotoLightbox(event, '${safeUrl}', '${safeLabel} - ${escapeHtml(staff.name || '')}')"><img src="${safeUrl}" alt="${safeLabel}"><span>${safeLabel}</span></div>`;
+            }).join('')}</div>`;
+        }
+
+        return `<div class="profile-document-grid">${docs.map(doc => {
+            const safeUrl = escapeHtml(doc.url);
+            const safeLabel = escapeHtml(doc.label);
+            return `<div class="profile-document-tile"><img src="${safeUrl}" alt="${safeLabel}" onclick="openPhotoLightbox(event, '${safeUrl}', '${safeLabel} - ${escapeHtml(staff.name || '')}')"><div>${safeLabel}</div></div>`;
+        }).join('')}</div>`;
     }
 
     function findMatchingLocalStaff(profileData) {
@@ -1394,6 +1535,9 @@
         editingStaffId = null;
         document.getElementById('addProfileForm').reset();
         setProfilePhotoPreview('', '');
+        setDocumentPhotoPreview('licenceFrontPreview', '', '');
+        setDocumentPhotoPreview('licenceBackPreview', '', '');
+        setDocumentPhotoPreview('tachoCardPreview', '', '');
         document.getElementById('profileFormTitle').innerText = "Add New Staff Member to HRIS";
         document.getElementById('profileSubmitBtn').innerText = "Create Profile & Save to Database";
         document.getElementById('pageTitle').innerText = "Add New Staff Profile";
@@ -1429,11 +1573,18 @@
         document.getElementById('profEmergName').value = p.emergName || '';
         document.getElementById('profEmergNum').value = p.emergNum || '';
         document.getElementById('profNI').value = p.ni || '';
+        document.getElementById('profLicenceNumber').value = p.licenceNumber || '';
+        document.getElementById('profTachoCardNumber').value = p.tachoCardNumber || '';
         document.getElementById('profBankAcc').value = p.bankAcc || '';
         document.getElementById('profBankSort').value = p.bankSort || '';
-        const photoInput = document.getElementById('profPhoto');
-        if (photoInput) photoInput.value = '';
+        ['profPhoto', 'profLicenceFrontPhoto', 'profLicenceBackPhoto', 'profTachoCardPhoto'].forEach(inputId => {
+            const input = document.getElementById(inputId);
+            if (input) input.value = '';
+        });
         setProfilePhotoPreview(p.photoUrl || '', 'Current profile photo');
+        setDocumentPhotoPreview('licenceFrontPreview', p.licenceFrontUrl || '', 'Current driving licence front');
+        setDocumentPhotoPreview('licenceBackPreview', p.licenceBackUrl || '', 'Current driving licence back');
+        setDocumentPhotoPreview('tachoCardPreview', p.tachoCardPhotoUrl || '', 'Current drivers card front');
 
         switchTab('adminAddProfile', document.querySelector('#staffProfilesSubMenu li:nth-child(1) a'), true);
     }
@@ -1452,6 +1603,9 @@
         const fullName = `${fName} ${sName}`.trim();
         const existingStaff = editingStaffId ? staffData.find(s => s.id === editingStaffId) : null;
         const existingPhotoUrl = existingStaff && existingStaff.profile ? (existingStaff.profile.photoUrl || '') : '';
+        const existingLicenceFrontUrl = existingStaff && existingStaff.profile ? (existingStaff.profile.licenceFrontUrl || '') : '';
+        const existingLicenceBackUrl = existingStaff && existingStaff.profile ? (existingStaff.profile.licenceBackUrl || '') : '';
+        const existingTachoCardPhotoUrl = existingStaff && existingStaff.profile ? (existingStaff.profile.tachoCardPhotoUrl || '') : '';
 
         const dbPayload = {
             first_name: fName,
@@ -1471,15 +1625,24 @@
             emergency_contact_name: document.getElementById('profEmergName').value,
             emergency_contact_number: document.getElementById('profEmergNum').value,
             ni_number: document.getElementById('profNI').value.toUpperCase(),
+            licence_number: document.getElementById('profLicenceNumber').value.toUpperCase(),
+            tacho_card_number: document.getElementById('profTachoCardNumber').value.toUpperCase(),
             bank_account_number: document.getElementById('profBankAcc').value,
             bank_sort_code: document.getElementById('profBankSort').value
         };
 
         try {
             const uploadedPhotoUrl = await uploadProfilePhotoIfSelected(dbPayload.employee_number, fullName);
+            const uploadedLicenceFrontUrl = await uploadDocumentPhotoIfSelected('profLicenceFrontPhoto', dbPayload.employee_number, fullName, 'driving-licence-front');
+            const uploadedLicenceBackUrl = await uploadDocumentPhotoIfSelected('profLicenceBackPhoto', dbPayload.employee_number, fullName, 'driving-licence-back');
+            const uploadedTachoCardUrl = await uploadDocumentPhotoIfSelected('profTachoCardPhoto', dbPayload.employee_number, fullName, 'drivers-card-front');
+
             dbPayload.profile_photo_url = uploadedPhotoUrl || existingPhotoUrl || null;
+            dbPayload.driving_licence_front_url = uploadedLicenceFrontUrl || existingLicenceFrontUrl || null;
+            dbPayload.driving_licence_back_url = uploadedLicenceBackUrl || existingLicenceBackUrl || null;
+            dbPayload.tacho_card_front_url = uploadedTachoCardUrl || existingTachoCardPhotoUrl || null;
         } catch (error) {
-            alert(`Profile Photo Error: ${error.message}`);
+            alert(`Photo Upload Error: ${error.message}`);
             submitBtn.innerText = originalText;
             submitBtn.disabled = false;
             return;
@@ -1492,7 +1655,13 @@
             mob: dbPayload.mobile_number, email: dbPayload.email, empNo: dbPayload.employee_number,
             join: dbPayload.joined_date || '', job: dbPayload.job_title, hours: dbPayload.contracted_hours || '',
             emergName: dbPayload.emergency_contact_name, emergNum: dbPayload.emergency_contact_number,
-            ni: dbPayload.ni_number, bankAcc: dbPayload.bank_account_number, bankSort: dbPayload.bank_sort_code,
+            ni: dbPayload.ni_number,
+            licenceNumber: dbPayload.licence_number,
+            tachoCardNumber: dbPayload.tacho_card_number,
+            licenceFrontUrl: dbPayload.driving_licence_front_url || '',
+            licenceBackUrl: dbPayload.driving_licence_back_url || '',
+            tachoCardPhotoUrl: dbPayload.tacho_card_front_url || '',
+            bankAcc: dbPayload.bank_account_number, bankSort: dbPayload.bank_sort_code,
             photoUrl: dbPayload.profile_photo_url || ''
         };
 
@@ -1712,6 +1881,8 @@
                     <div class="data-row"><span class="data-label">Department</span><span class="data-val">${staff.dept}</span></div>
                     <div class="data-row"><span class="data-label">Date Joined</span><span class="data-val">${formatDateUK(p.join)}</span></div>
                     <div class="data-row"><span class="data-label">Contracted Hours</span><span class="data-val">${p.hours ? p.hours + ' hrs' : '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Drivers Licence No</span><span class="data-val">${p.licenceNumber || '-'}</span></div>
+                    <div class="data-row"><span class="data-label">Drivers Card No</span><span class="data-val">${p.tachoCardNumber || '-'}</span></div>
                 </div>
 
                 <div class="data-group">
@@ -1721,7 +1892,12 @@
                     <div class="data-row"><span class="data-label">Sort Code</span><span class="data-val">${p.bankSort || '***'}</span></div>
                 </div>
 
-                <div class="data-group full-width">
+                <div class="data-group">
+                    <h4>Licence & Drivers Card Images</h4>
+                    ${renderStaffDocumentThumbnails(staff, false)}
+                </div>
+
+                <div class="data-group">
                     <h4>Disciplinary History</h4>
                     <div id="profileDisciplinaryHistory">Loading disciplinary history...</div>
                 </div>
