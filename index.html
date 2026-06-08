@@ -2739,8 +2739,7 @@
                     <td style="color: ${statusColor}; font-weight:bold;">${rem}</td>
                     <td>
                         <button style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); padding: 5px 10px; margin-right: 5px;" onclick="quickEditEntitlements(${staff.id})">Edit Entitlement</button>
-                        <button style="background: transparent; border: 1px solid var(--rs-orange); color: var(--rs-orange); padding: 5px 10px; margin-right: 5px;" onclick="holidayOverride(${staff.id})">Holiday Override</button>
-                        <button style="background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red); padding: 5px 10px;" onclick="removeStaff(${staff.id})">Remove</button>
+                        <button style="background: transparent; border: 1px solid var(--rs-orange); color: var(--rs-orange); padding: 5px 10px; margin-right: 5px;" onclick="holidayOverride(${staff.id})">Manual Entry</button>
                     </td>
                 </tr>
             `;
@@ -3281,12 +3280,12 @@
         const staff = staffData.find(s => s.id === id);
         if (!staff) return alert('Could not find this staff member.');
 
-        const startDate = prompt(`Holiday Override for ${staff.name}
+        const startDate = prompt(`Manual Entry for ${staff.name}
 
 Enter the first day of holiday in YYYY-MM-DD format:`);
         if (startDate === null) return;
 
-        const endDate = prompt(`Holiday Override for ${staff.name}
+        const endDate = prompt(`Manual Entry for ${staff.name}
 
 Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
         if (endDate === null) return;
@@ -3309,7 +3308,7 @@ Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
             return alert('This date range does not contain any Monday-Friday working days, so no holiday days would be added.');
         }
 
-        const reason = prompt('Optional note/reason for this holiday override:', 'Manual holiday override added by Personnel Manager');
+        const reason = prompt('Optional note/reason for this manual entry:', 'Manual holiday entry added by Personnel Manager');
         if (reason === null) return;
 
         const p = staff.profile || {};
@@ -3318,7 +3317,7 @@ Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
         const oldUsed = Number(staff.used || 0);
 
         const confirmOverride = confirm(
-            `Add approved holiday override for ${staff.name}?\n\n` +
+            `Add approved manual holiday entry for ${staff.name}?\n\n` +
             `Dates: ${formatDateUK(cleanStart)} to ${formatDateUK(cleanEnd)}\n` +
             `Working days to add: ${days}\n\n` +
             `This will update the yearly planner and increase used holiday from ${oldUsed} to ${oldUsed + days}.`
@@ -3334,8 +3333,8 @@ Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
             end_date: cleanEnd,
             days_requested: days,
             status: 'approved',
-            manager_response: reason.trim() || 'Manual holiday override added by Personnel Manager',
-            requested_by: 'Personnel Manager Holiday Override',
+            manager_response: reason.trim() || 'Manual holiday entry added by Personnel Manager',
+            requested_by: 'Personnel Manager Manual Entry',
             reviewed_by: currentUser ? currentUser.name : 'Personnel Manager',
             reviewed_at: new Date().toISOString()
         };
@@ -3365,11 +3364,11 @@ Enter the last day of holiday in YYYY-MM-DD format:`, startDate);
 
             renderAdminData();
             renderPlanner();
-            alert(`${staff.name}'s holiday override has been added and the yearly planner has been updated.`);
+            alert(`${staff.name}'s manual holiday entry has been added and the yearly planner has been updated.`);
         } catch (error) {
             staff.used = oldUsed;
             renderAdminData();
-            alert(`Could not save the holiday override: ${error.message}`);
+            alert(`Could not save the manual entry: ${error.message}`);
         }
     }
 
