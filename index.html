@@ -239,6 +239,24 @@
         .photo-lightbox-content img { max-width: 90vw; max-height: 82vh; border-radius: 10px; border: 2px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.6); background: var(--bg-main); }
         .photo-lightbox-caption { margin-top: 12px; color: var(--text-main); font-weight: 600; }
         .photo-lightbox-close { position: absolute; top: -18px; right: -18px; width: 38px; height: 38px; border-radius: 50%; padding: 0; background: var(--reject-red); color: #fff; font-size: 1.3rem; line-height: 38px; text-align: center; }
+        .holiday-name-link { background: transparent; border: none; color: var(--frost-blue); padding: 0; font-weight: 700; text-align: left; text-decoration: underline; cursor: pointer; }
+        .holiday-detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72); z-index: 9000; align-items: center; justify-content: center; padding: 24px; }
+        .holiday-detail-overlay.open { display: flex; }
+        .holiday-detail-box { width: min(1050px, 96vw); max-height: 90vh; overflow-y: auto; background: var(--panel-slate); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 18px 45px rgba(0,0,0,0.55); }
+        .holiday-detail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 20px 22px; border-bottom: 1px solid var(--border-color); background: var(--bg-sidebar); border-radius: 12px 12px 0 0; }
+        .holiday-detail-header h3 { margin: 0 0 6px 0; color: var(--rs-orange); }
+        .holiday-detail-header p { margin: 0; color: var(--text-muted); }
+        .holiday-detail-content { padding: 20px 22px 24px 22px; }
+        .holiday-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .holiday-summary-card { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; text-align: center; }
+        .holiday-summary-card span { display: block; color: var(--text-muted); font-size: 0.82rem; margin-bottom: 4px; }
+        .holiday-summary-card strong { font-size: 1.35rem; }
+        .holiday-section-title { margin: 22px 0 10px 0; color: var(--frost-blue); }
+        .holiday-detail-table-wrap { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; }
+        .holiday-detail-table-wrap table { min-width: 760px; }
+        .holiday-empty-row { text-align: center; color: var(--text-muted); padding: 18px !important; }
+        .holiday-small-action { padding: 6px 10px; font-size: 0.82em; margin-right: 6px; }
+        .holiday-detail-close { background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 8px 12px; }
         .photo-preview-wrap { display: flex; align-items: center; gap: 15px; margin-top: 8px; padding: 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
         .photo-preview-wrap img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); }
         .document-preview-wrap { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; }
@@ -757,6 +775,19 @@
     </div>
 </div>
 
+<div id="holidayDetailOverlay" class="holiday-detail-overlay" onclick="closeHolidayDetails()">
+    <div class="holiday-detail-box" onclick="event.stopPropagation()">
+        <div class="holiday-detail-header">
+            <div>
+                <h3 id="holidayDetailTitle">Holiday Details</h3>
+                <p id="holidayDetailSubtitle">Review, edit, or delete this staff member's holiday entries.</p>
+            </div>
+            <button type="button" class="holiday-detail-close" onclick="closeHolidayDetails()">Close</button>
+        </div>
+        <div id="holidayDetailContent" class="holiday-detail-content"></div>
+    </div>
+</div>
+
 <script>
     // --- GLOBAL SUPABASE CREDENTIALS ---
     const SUPABASE_URL = 'https://mbudwnwxucluwgbkgbfx.supabase.co';
@@ -769,7 +800,8 @@
     // This HR app only allows these two email addresses to enter.
     const AUTHORISED_EMAILS = [
         'robinson01623@gmail.com',
-        'chris@frosttransportsolutions.co.uk'
+        'chris@frosttransportsolutions.co.uk',
+        'accounts@frosttransportsolutions.co.uk'
     ];
 
     const AUTH_STORAGE_KEY = 'frost_hr_supabase_session_v1';
@@ -875,7 +907,12 @@
 
         const record = {
             email: email,
-            full_name: email === 'chris@frosttransportsolutions.co.uk' ? 'Chris Frost' : 'Richard Robinson',
+            full_name:
+                email === 'chris@frosttransportsolutions.co.uk'
+                    ? 'Chris Frost'
+                    : email === 'accounts@frosttransportsolutions.co.uk'
+                        ? 'Rebecca'
+                        : 'Richard Robinson',
             role: 'personnel_manager',
             is_active: true
         };
@@ -955,6 +992,8 @@
 
     let requests = [];
     let editingStaffId = null;
+    let currentHolidayDetailStaffId = null;
+    const LOCAL_HOLIDAY_CHANGES_KEY = 'frost_hr_local_holiday_changes_v1';
 
     function loadHistoricalData() {
         const rawCSVData = "1:2026-04-03,2026-04-17;2:2026-01-01,2026-01-01|2026-01-30,2026-01-30|2026-04-03,2026-04-10|2026-05-04,2026-05-08|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;3:2026-01-01,2026-01-02|2026-02-02,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;4:2026-01-01,2026-01-02|2026-02-17,2026-02-17|2026-04-03,2026-04-06|2026-04-27,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-10-12,2026-10-16|2026-12-25,2026-12-28;5:2026-01-01,2026-01-01|2026-01-09,2026-01-09|2026-01-22,2026-01-26|2026-02-26,2026-02-26|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-03,2026-08-07|2026-08-31,2026-08-31|2026-12-25,2026-12-28;6:2026-01-01,2026-01-01|2026-03-23,2026-03-27|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-08,2026-06-19|2026-08-31,2026-08-31|2026-12-25,2026-12-28;7:2026-01-01,2026-01-02|2026-03-30,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-29|2026-08-17,2026-08-21|2026-08-31,2026-08-31|2026-11-18,2026-11-25|2026-12-25,2026-12-28;8:2026-01-01,2026-01-01|2026-02-23,2026-02-25|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;9:2026-01-01,2026-01-01|2026-03-05,2026-03-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;11:2026-01-01,2026-01-01|2026-02-20,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-06-09,2026-06-24|2026-08-28,2026-08-31|2026-12-25,2026-12-28;12:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;15:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-07-20,2026-07-24|2026-08-31,2026-08-31|2026-12-25,2026-12-28;17:2026-01-01,2026-01-01|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;20:2026-01-01,2026-01-01|2026-01-28,2026-01-28|2026-03-04,2026-03-13|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;21:2026-01-01,2026-01-02|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;22:2026-01-01,2026-01-01|2026-02-18,2026-02-23|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28;23:2026-01-01,2026-01-01|2026-02-09,2026-02-09|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-13,2026-08-17|2026-08-31,2026-08-31|2026-11-16,2026-11-25|2026-12-25,2026-12-28;24:2026-01-01,2026-01-01|2026-02-06,2026-02-09|2026-02-16,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-21,2026-05-25|2026-07-06,2026-07-17|2026-08-31,2026-08-31|2026-12-21,2027-01-01;25:2026-01-01,2026-01-02|2026-02-13,2026-02-16|2026-04-03,2026-04-06|2026-05-04,2026-05-08|2026-05-25,2026-05-27|2026-07-10,2026-07-27|2026-08-31,2026-08-31|2026-10-16,2026-10-19|2026-12-25,2026-12-28;28:2026-01-01,2026-01-02|2026-01-16,2026-01-16|2026-04-03,2026-04-06|2026-04-24,2026-04-24|2026-05-01,2026-05-08|2026-05-25,2026-05-25|2026-08-27,2026-08-31|2026-12-25,2026-12-28;31:2026-01-01,2026-01-01|2026-02-06,2026-02-06|2026-02-19,2026-02-20|2026-04-03,2026-04-06|2026-05-04,2026-05-04|2026-05-25,2026-05-25|2026-08-31,2026-08-31|2026-12-25,2026-12-28";
@@ -969,7 +1008,21 @@
             
             dates.forEach(d => {
                 let dp = d.split(',');
-                requests.push({ id: reqId++, staffId: staffId, name: staff.name, dept: staff.dept, start: dp[0], end: dp[1], status: 'Approved' });
+                const localId = `legacy-${reqId++}`;
+                const localChanges = getLocalHolidayChanges();
+                if (localChanges.deleted.includes(localId)) return;
+                const savedEdit = localChanges.edits[localId] || {};
+                requests.push({
+                    id: localId,
+                    staffId: staffId,
+                    name: staff.name,
+                    dept: staff.dept,
+                    start: savedEdit.start || dp[0],
+                    end: savedEdit.end || dp[1],
+                    status: savedEdit.status || 'Approved',
+                    daysRequested: calculateRequestedDays(savedEdit.start || dp[0], savedEdit.end || dp[1]),
+                    isImportedHistorical: true
+                });
             });
         });
     }
@@ -2063,8 +2116,9 @@
                         <h4>${s.name}</h4>
                         <p>${jobTitle}</p>
                     </div>
-                    <div style="margin-top: 15px;">
-                        <button onclick="openEditProfile(${s.id}, event)" style="padding: 6px 12px; font-size: 0.85em; background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); width: 100%;">✎ Edit Profile</button>
+                    <div style="margin-top: 15px; display: flex; gap: 8px;">
+                        <button onclick="openEditProfile(${s.id}, event)" style="padding: 6px 12px; font-size: 0.85em; background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue); flex: 1;">✎ Edit</button>
+                        <button onclick="deleteStaffProfile(${s.id}, event)" style="padding: 6px 12px; font-size: 0.85em; background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red); flex: 1;">🗑 Delete</button>
                     </div>
                 </div>
             `;
@@ -2578,6 +2632,7 @@
             id: existing ? existing.id : row.id,
             supabaseRequestId: row.id,
             staffId: staff ? staff.id : null,
+            employeeNumber: row.employee_number || '',
             name: staff ? staff.name : fullName,
             dept: row.department || (staff ? staff.dept : 'Drivers'),
             start: row.start_date,
@@ -2677,7 +2732,7 @@
 
             staffBody.innerHTML += `
                 <tr>
-                    <td>${escapeHtml(staff.name)}</td>
+                    <td><button type="button" class="holiday-name-link" onclick="openHolidayDetails(${staff.id})">${escapeHtml(staff.name)}</button></td>
                     <td>${escapeHtml(staff.dept)}</td>
                     <td>${staff.entitlement}</td>
                     <td>${staff.used}</td>
@@ -2730,15 +2785,463 @@
         });
     }
 
-    function removeStaff(id) {
-        const staffMember = staffData.find(s => s.id === id);
-        const confirmDelete = confirm(`WARNING: Are you sure you want to permanently remove ${staffMember.name}?`);
-        if (confirmDelete) {
-            staffData = staffData.filter(s => s.id !== id);
-            requests = requests.filter(r => r.staffId !== id);
-            renderAdminData();
-            renderStaffCards();
+    function getLocalHolidayChanges() {
+        try {
+            const raw = localStorage.getItem(LOCAL_HOLIDAY_CHANGES_KEY);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return {
+                deleted: Array.isArray(parsed.deleted) ? parsed.deleted : [],
+                edits: parsed.edits && typeof parsed.edits === 'object' ? parsed.edits : {}
+            };
+        } catch (_) {
+            return { deleted: [], edits: {} };
         }
+    }
+
+    function saveLocalHolidayChanges(changes) {
+        localStorage.setItem(LOCAL_HOLIDAY_CHANGES_KEY, JSON.stringify(changes || { deleted: [], edits: {} }));
+    }
+
+    function saveLocalHolidayEdit(req) {
+        if (!req || !req.isImportedHistorical) return;
+        const changes = getLocalHolidayChanges();
+        changes.edits[String(req.id)] = {
+            start: req.start,
+            end: req.end,
+            status: req.status
+        };
+        saveLocalHolidayChanges(changes);
+    }
+
+    function saveLocalHolidayDelete(req) {
+        if (!req || !req.isImportedHistorical) return;
+        const changes = getLocalHolidayChanges();
+        const id = String(req.id);
+        if (!changes.deleted.includes(id)) changes.deleted.push(id);
+        delete changes.edits[id];
+        saveLocalHolidayChanges(changes);
+    }
+
+    function holidayRequestBelongsToStaff(req, staff) {
+        if (!req || !staff) return false;
+        if (String(req.staffId) === String(staff.id)) return true;
+        const profile = staff.profile || {};
+        if (req.employeeNumber && profile.empNo && normaliseText(req.employeeNumber) === normaliseText(profile.empNo)) return true;
+        return normaliseText(req.name) === normaliseText(staff.name);
+    }
+
+    function getHolidayRequestsForStaff(staff) {
+        return requests
+            .filter(req => holidayRequestBelongsToStaff(req, staff))
+            .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    }
+
+    function getHolidayEntryKey(req) {
+        if (!req) return '';
+        if (req.supabaseRequestId) return `sb:${req.supabaseRequestId}`;
+        return `local:${req.id}`;
+    }
+
+    function getHolidayRequestByEntryKey(key) {
+        const cleanKey = (key || '').toString();
+        if (cleanKey.startsWith('sb:')) {
+            const supabaseId = cleanKey.slice(3);
+            return requests.find(req => String(req.supabaseRequestId || '') === String(supabaseId));
+        }
+        if (cleanKey.startsWith('local:')) {
+            const localId = cleanKey.slice(6);
+            return requests.find(req => !req.supabaseRequestId && String(req.id) === String(localId));
+        }
+        return requests.find(req => String(req.id) === String(cleanKey) || String(req.supabaseRequestId) === String(cleanKey));
+    }
+
+    function getHolidayRequestById(id) {
+        return getHolidayRequestByEntryKey(id);
+    }
+
+    function removeHolidayRequestFromLocalState(targetReq) {
+        const targetKey = getHolidayEntryKey(targetReq);
+        requests = requests.filter(req => getHolidayEntryKey(req) !== targetKey);
+    }
+
+    function renderHolidayRows(rows, emptyMessage) {
+        if (!rows.length) {
+            return `<tr><td colspan="6" class="holiday-empty-row">${escapeHtml(emptyMessage)}</td></tr>`;
+        }
+
+        return rows.map(req => {
+            const days = Number(req.daysRequested || calculateRequestedDays(req.start, req.end));
+            const sourceLabel = req.supabaseRequestId ? 'Supabase' : 'Imported planner record';
+            const note = req.denialReason || req.managerResponse || req.requestedBy || sourceLabel;
+            const entryKey = getHolidayEntryKey(req);
+            return `
+                <tr>
+                    <td>${escapeHtml(formatDateUK(req.start))}</td>
+                    <td>${escapeHtml(formatDateUK(req.end))}</td>
+                    <td>${days}</td>
+                    <td>${escapeHtml(formatStatusForApp(req.status))}</td>
+                    <td>${escapeHtml(note || '-')}</td>
+                    <td>
+                        <button type="button" class="holiday-small-action" style="background: transparent; border: 1px solid var(--frost-blue); color: var(--frost-blue);" onclick='editHolidayEntry(${jsString(entryKey)})'>Edit</button>
+                        <button type="button" class="holiday-small-action" style="background: transparent; border: 1px solid var(--reject-red); color: var(--reject-red);" onclick='deleteHolidayEntry(${jsString(entryKey)})'>Delete</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderHolidayDetailSection(title, rows, emptyMessage) {
+        return `
+            <h4 class="holiday-section-title">${escapeHtml(title)}</h4>
+            <div class="holiday-detail-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Days</th>
+                            <th>Status</th>
+                            <th>Notes / Response</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>${renderHolidayRows(rows, emptyMessage)}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function openHolidayDetails(staffId) {
+        currentHolidayDetailStaffId = staffId;
+        const staff = staffData.find(s => String(s.id) === String(staffId));
+        if (!staff) return alert('Could not find this staff member.');
+
+        const overlay = document.getElementById('holidayDetailOverlay');
+        const title = document.getElementById('holidayDetailTitle');
+        const subtitle = document.getElementById('holidayDetailSubtitle');
+        const content = document.getElementById('holidayDetailContent');
+        if (!overlay || !title || !subtitle || !content) return;
+
+        const today = toDateStringLocal(new Date());
+        const staffRequests = getHolidayRequestsForStaff(staff);
+        const expiredApproved = staffRequests.filter(req => isApprovedHolidayRequest(req) && (req.end || '') < today);
+        const upcomingApproved = staffRequests.filter(req => isApprovedHolidayRequest(req) && (req.end || '') >= today);
+        const awaitingApproval = staffRequests.filter(isPendingHolidayRequest);
+        const deniedOrCancelled = staffRequests.filter(req => ['Denied', 'Cancelled'].includes(formatStatusForApp(req.status)));
+
+        const totalApprovedDays = staffRequests
+            .filter(isApprovedHolidayRequest)
+            .reduce((sum, req) => sum + Number(req.daysRequested || calculateRequestedDays(req.start, req.end)), 0);
+
+        const remaining = Number(staff.entitlement || 0) - Number(staff.used || 0);
+
+        title.innerText = `${staff.name} - Holiday Details`;
+        subtitle.innerText = 'Expired holidays, upcoming approved holidays, and requests awaiting approval.';
+        content.innerHTML = `
+            <div class="holiday-summary-grid">
+                <div class="holiday-summary-card"><span>Total Entitlement</span><strong>${Number(staff.entitlement || 0)}</strong></div>
+                <div class="holiday-summary-card"><span>Used</span><strong>${Number(staff.used || 0)}</strong></div>
+                <div class="holiday-summary-card"><span>Remaining</span><strong style="color:${remaining < 0 ? 'var(--reject-red)' : 'var(--accept-green)'};">${remaining}</strong></div>
+                <div class="holiday-summary-card"><span>Approved Entries</span><strong>${expiredApproved.length + upcomingApproved.length}</strong></div>
+                <div class="holiday-summary-card"><span>Approved Days Listed</span><strong>${totalApprovedDays}</strong></div>
+                <div class="holiday-summary-card"><span>Awaiting Approval</span><strong>${awaitingApproval.length}</strong></div>
+            </div>
+            ${renderHolidayDetailSection('Expired Holidays', expiredApproved, 'No expired approved holidays found for this staff member.')}
+            ${renderHolidayDetailSection('Upcoming Approved Holidays', upcomingApproved, 'No upcoming approved holidays found for this staff member.')}
+            ${renderHolidayDetailSection('Awaiting Approval', awaitingApproval, 'No holiday requests awaiting approval for this staff member.')}
+            ${deniedOrCancelled.length ? renderHolidayDetailSection('Denied / Cancelled Requests', deniedOrCancelled, '') : ''}
+        `;
+
+        overlay.classList.add('open');
+    }
+
+    function refreshOpenHolidayDetails() {
+        if (currentHolidayDetailStaffId !== null && document.getElementById('holidayDetailOverlay')?.classList.contains('open')) {
+            openHolidayDetails(currentHolidayDetailStaffId);
+        }
+    }
+
+    function closeHolidayDetails() {
+        const overlay = document.getElementById('holidayDetailOverlay');
+        if (overlay) overlay.classList.remove('open');
+    }
+
+    async function editHolidayEntry(entryKey) {
+        const req = getHolidayRequestByEntryKey(entryKey);
+        if (!req) return alert('Could not find this holiday entry.');
+        const staff = staffData.find(s => String(s.id) === String(req.staffId)) || staffData.find(s => String(s.id) === String(currentHolidayDetailStaffId));
+
+        const newStart = prompt(`Edit start date for ${req.name} in YYYY-MM-DD format:`, req.start || '');
+        if (newStart === null) return;
+        const newEnd = prompt(`Edit end date for ${req.name} in YYYY-MM-DD format:`, req.end || newStart.trim());
+        if (newEnd === null) return;
+
+        const cleanStart = newStart.trim();
+        const cleanEnd = newEnd.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanStart) || !/^\d{4}-\d{2}-\d{2}$/.test(cleanEnd)) {
+            return alert('Please enter dates in YYYY-MM-DD format, for example 2026-06-15.');
+        }
+
+        const parsedStart = parseDateOnly(cleanStart);
+        const parsedEnd = parseDateOnly(cleanEnd);
+        if (!parsedStart || !parsedEnd || parsedEnd < parsedStart) {
+            return alert('Please enter a valid date range. The end date cannot be before the start date.');
+        }
+
+        const oldStart = req.start;
+        const oldEnd = req.end;
+        const oldDays = Number(req.daysRequested || calculateRequestedDays(req.start, req.end));
+        const newDays = calculateRequestedDays(cleanStart, cleanEnd);
+        if (newDays <= 0) return alert('This date range does not contain any Monday-Friday working days.');
+
+        const oldUsed = staff ? Number(staff.used || 0) : 0;
+        const wasApproved = isApprovedHolidayRequest(req);
+
+        try {
+            if (req.supabaseRequestId) {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?id=eq.${encodeURIComponent(req.supabaseRequestId)}`, {
+                    method: 'PATCH',
+                    headers: {
+                        ...getSupabaseHeaders(),
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        start_date: cleanStart,
+                        end_date: cleanEnd,
+                        days_requested: newDays,
+                        manager_response: req.managerResponse || (wasApproved ? 'Edited by Personnel Manager' : null)
+                    })
+                });
+
+                if (!response.ok) {
+                    let errData = {};
+                    try { errData = await response.json(); } catch (_) {}
+                    throw new Error(errData.message || `Holiday edit failed with status ${response.status}`);
+                }
+
+                const rows = await response.json();
+                if (Array.isArray(rows) && rows[0]) upsertRequestIntoLocalState(rows[0]);
+            } else {
+                req.start = cleanStart;
+                req.end = cleanEnd;
+                req.daysRequested = newDays;
+                saveLocalHolidayEdit(req);
+            }
+
+            if (wasApproved && staff) {
+                staff.used = oldUsed + (newDays - oldDays);
+                await saveHolidayEntitlementToSupabase(staff);
+            }
+
+            renderAdminData();
+            renderPlanner();
+            refreshOpenHolidayDetails();
+            alert('Holiday entry updated.');
+        } catch (error) {
+            req.start = oldStart;
+            req.end = oldEnd;
+            req.daysRequested = oldDays;
+            if (staff) staff.used = oldUsed;
+            renderAdminData();
+            refreshOpenHolidayDetails();
+            alert(`Could not update the holiday entry: ${error.message}`);
+        }
+    }
+
+    async function deleteHolidayEntry(entryKey) {
+        const req = getHolidayRequestByEntryKey(entryKey);
+        if (!req) return alert('Could not find this holiday entry.');
+        const staff = staffData.find(s => String(s.id) === String(req.staffId)) || staffData.find(s => String(s.id) === String(currentHolidayDetailStaffId));
+        const days = Number(req.daysRequested || calculateRequestedDays(req.start, req.end));
+        const wasApproved = isApprovedHolidayRequest(req);
+
+        const confirmed = confirm(
+            `Delete this holiday entry for ${req.name}?\n\n` +
+            `Dates: ${formatDateUK(req.start)} to ${formatDateUK(req.end)}\n` +
+            `Working days: ${days}\n\n` +
+            `This cannot be undone.`
+        );
+        if (!confirmed) return;
+
+        const oldUsed = staff ? Number(staff.used || 0) : 0;
+        const requestToDelete = req;
+
+        try {
+            if (requestToDelete.supabaseRequestId) {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/holiday_requests?id=eq.${encodeURIComponent(requestToDelete.supabaseRequestId)}&select=id`, {
+                    method: 'DELETE',
+                    headers: {
+                        ...getSupabaseHeaders(),
+                        'Prefer': 'return=representation'
+                    }
+                });
+
+                if (!response.ok) {
+                    let errData = {};
+                    try { errData = await response.json(); } catch (_) {}
+                    throw new Error(errData.message || `Holiday delete failed with status ${response.status}`);
+                }
+
+                const deletedRows = await response.json();
+                if (!Array.isArray(deletedRows) || deletedRows.length !== 1) {
+                    throw new Error('Supabase did not confirm that exactly one holiday entry was deleted. No local changes were made.');
+                }
+            } else {
+                saveLocalHolidayDelete(requestToDelete);
+            }
+
+            removeHolidayRequestFromLocalState(requestToDelete);
+
+            if (wasApproved && staff) {
+                staff.used = Math.max(0, oldUsed - days);
+                await saveHolidayEntitlementToSupabase(staff);
+            }
+
+            renderAdminData();
+            renderPlanner();
+            refreshOpenHolidayDetails();
+            alert('Holiday entry deleted.');
+        } catch (error) {
+            if (staff) staff.used = oldUsed;
+            renderAdminData();
+            refreshOpenHolidayDetails();
+            alert(`Could not delete the holiday entry: ${error.message}`);
+        }
+    }
+
+    async function deleteRowsFromSupabase(tableName, filter) {
+        if (!filter) return;
+        await refreshSupabaseSessionIfNeeded();
+
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?${filter}`, {
+            method: 'DELETE',
+            headers: {
+                ...getSupabaseHeaders(),
+                'Prefer': 'return=minimal'
+            }
+        });
+
+        if (!response.ok) {
+            let errData = {};
+            try { errData = await response.json(); } catch (_) {}
+            throw new Error(errData.message || `Could not delete from ${tableName}. Supabase returned status ${response.status}.`);
+        }
+    }
+
+    function addUniqueFilter(filters, filter) {
+        if (filter && !filters.includes(filter)) filters.push(filter);
+    }
+
+    function buildStaffDeleteFilters(staff) {
+        const profile = staff.profile || {};
+        const firstName = profile.fName || (staff.name || '').split(' ')[0] || '';
+        const surname = profile.sName || (staff.name || '').split(' ').slice(1).join(' ') || '';
+        const fullName = staff.name || `${firstName} ${surname}`.trim();
+
+        const filters = {
+            staff_profile: [],
+            holiday_entitlements: [],
+            holiday_requests: [],
+            disciplinary_cases: []
+        };
+
+        if (staff.supabaseId) {
+            addUniqueFilter(filters.staff_profile, `id=eq.${encodeURIComponent(staff.supabaseId)}`);
+            addUniqueFilter(filters.holiday_entitlements, `staff_profile_id=eq.${encodeURIComponent(staff.supabaseId)}`);
+            addUniqueFilter(filters.disciplinary_cases, `staff_profile_id=eq.${encodeURIComponent(staff.supabaseId)}`);
+        }
+
+        if (staff.holidayRowId) {
+            addUniqueFilter(filters.holiday_entitlements, `id=eq.${encodeURIComponent(staff.holidayRowId)}`);
+        }
+
+        if (staff.id !== null && staff.id !== undefined) {
+            addUniqueFilter(filters.holiday_entitlements, `local_staff_id=eq.${encodeURIComponent(staff.id)}`);
+            addUniqueFilter(filters.disciplinary_cases, `local_staff_id=eq.${encodeURIComponent(staff.id)}`);
+        }
+
+        if (profile.empNo) {
+            const emp = encodeURIComponent(profile.empNo);
+            addUniqueFilter(filters.staff_profile, `employee_number=eq.${emp}`);
+            addUniqueFilter(filters.holiday_entitlements, `employee_number=eq.${emp}`);
+            addUniqueFilter(filters.holiday_requests, `employee_number=eq.${emp}`);
+            addUniqueFilter(filters.disciplinary_cases, `employee_number=eq.${emp}`);
+        }
+
+        if (firstName && surname) {
+            const nameFilter = `first_name=eq.${encodeURIComponent(firstName)}&surname=eq.${encodeURIComponent(surname)}`;
+            addUniqueFilter(filters.staff_profile, nameFilter);
+            addUniqueFilter(filters.holiday_requests, nameFilter);
+        }
+
+        if (fullName) {
+            const full = encodeURIComponent(fullName);
+            addUniqueFilter(filters.holiday_entitlements, `full_name=eq.${full}`);
+            addUniqueFilter(filters.holiday_requests, `full_name=eq.${full}`);
+            addUniqueFilter(filters.disciplinary_cases, `full_name=eq.${full}`);
+        }
+
+        return filters;
+    }
+
+    async function deleteStaffMemberFromSupabase(staff) {
+        const filters = buildStaffDeleteFilters(staff);
+
+        // Delete related records first so the staff member does not reappear after refresh
+        // from holiday entitlement/request data.
+        for (const filter of filters.holiday_requests) {
+            await deleteRowsFromSupabase('holiday_requests', filter);
+        }
+        for (const filter of filters.holiday_entitlements) {
+            await deleteRowsFromSupabase('holiday_entitlements', filter);
+        }
+        for (const filter of filters.disciplinary_cases) {
+            await deleteRowsFromSupabase('disciplinary_cases', filter);
+        }
+        for (const filter of filters.staff_profile) {
+            await deleteRowsFromSupabase('staff_profile', filter);
+        }
+    }
+
+    function removeStaffFromLocalState(id) {
+        staffData = staffData.filter(s => s.id !== id);
+        requests = requests.filter(r => r.staffId !== id);
+        disciplinaryCases = disciplinaryCases.filter(c => c.staffId !== id);
+
+        populatePlannerStaffFilter();
+        populateDisciplinaryStaffList();
+        renderAdminData();
+        renderStaffCards();
+        renderQuickContactDirectory(false);
+        if (document.getElementById('plannerContainer')) renderPlanner();
+    }
+
+    async function deleteStaffProfile(id, event) {
+        if (event) event.stopPropagation();
+
+        const staffMember = staffData.find(s => s.id === id);
+        if (!staffMember) return alert('Could not find this staff member.');
+
+        const confirmed = confirm(
+            `WARNING: Are you sure you want to permanently delete ${staffMember.name}?\n\n` +
+            `This will remove their staff profile, holiday entitlement, holiday requests and disciplinary records from Supabase and from the app.\n\n` +
+            `This cannot be undone.`
+        );
+        if (!confirmed) return;
+
+        try {
+            await deleteStaffMemberFromSupabase(staffMember);
+            removeStaffFromLocalState(id);
+            alert(`${staffMember.name} has been deleted from the app and Supabase.`);
+        } catch (error) {
+            console.error('Staff delete failed:', error);
+            alert(`Could not delete ${staffMember.name}: ${error.message}`);
+        }
+    }
+
+    async function removeStaff(id) {
+        await deleteStaffProfile(id, null);
     }
 
     async function quickEditEntitlements(id) {
